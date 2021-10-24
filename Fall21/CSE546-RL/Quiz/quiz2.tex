@@ -1,0 +1,11 @@
+\usepackage{tikz}
+\usetikzlibrary{arrows,automata,positioning}
+
+\begin{tikzpicture}[shorten >=1pt,node distance=2cm,on grid,auto]
+    \tikzstyle{every state}=[fill={rgb:black,1;white,10}]
+  
+    \node[state,initial] (s_0)  {$s_0$};
+  
+    \path[->]
+    (s_0) edge  [loop above]  {0,1} ( );
+\end{tikzpicture}
