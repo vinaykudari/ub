@@ -1,0 +1,6 @@
+data/
+git/
+.DS_Store
+*.pickle
+*.gz
+*.mat
