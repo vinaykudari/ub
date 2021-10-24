@@ -1,5 +1,6 @@
 data/
 git/
+cavas-ecosystem/
 .DS_Store
 *.pickle
 *.gz
