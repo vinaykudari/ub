@@ -4,6 +4,9 @@ Comparing single layer MLP with deep MLP (using TensorFlow)
 
 import numpy as np
 import pickle
+from scipy.optimize import minimize
+from scipy.io import loadmat
+from math import sqrt, exp
 
 # Do not change this
 def initializeWeights(n_in,n_out):
@@ -25,13 +28,87 @@ def initializeWeights(n_in,n_out):
 
 # Replace this with your sigmoid implementation
 def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
     
     
 # Replace this with your nnObjFunction implementation
 def nnObjFunction(params, *args):
+    n_input, n_hidden, n_class, training_data, training_label, lambdaval = args
+
+    w1 = params[0:n_hidden * (n_input + 1)].reshape((n_hidden, (n_input + 1)))
+    w2 = params[(n_hidden * (n_input + 1)):].reshape((n_class, (n_hidden + 1)))
+    obj_val = 0
+
+    # Your code here
+    n_train = training_data.shape[0]
+    
+    # add bias to training data
+    training_data = np.hstack([training_data, np.ones((n_train, 1))])
+    
+    layer_one_net = np.dot(training_data, w1.T)
+    # activation function
+    layer_one_out = sigmoid(layer_one_net)
+    
+    # add bias to layer one
+    layer_one_out = np.hstack([layer_one_out, np.ones((n_train, 1))])
+    
+    output_net = np.dot(layer_one_out, w2.T)
+    # activation function
+    output = sigmoid(output_net)
+    
+    # one hot encode labels
+    encoded_labels = np.zeros((n_train, n_class))
+    for idx in range(n_train):
+        encoded_labels[idx][int(training_label[idx])] = 1.0
+    
+    delta = output - encoded_labels
+    
+    # w2 gradient: derivative of error function with respect to the weight from the hidden unit to output unit
+    w2_grad = np.dot(delta.T, layer_one_out)
+    
+    w1_grad = layer_one_out * (1 - layer_one_out) * np.dot(delta, w2)
+    w1_grad = np.dot(w1_grad.T, training_data)
+    
+    # remove gradient for bias term
+    w1_grad = w1_grad[:-1, :]
+    
+    # negative log loss
+    loss = -np.sum((encoded_labels * np.log(output)) + (1.0 - encoded_labels) * np.log(1.0 - output))
+    
+    mean_loss = loss/n_train
+    
+    reg = (lambdaval / 2 * n_train) * ((np.sum(w1 * w1) + np.sum(w2 * w2)))
+    obj_val = loss + reg
+        
+    w1_grad = (w1_grad + (lambdaval * w1)) / n_train
+    w2_grad = (w2_grad + (lambdaval * w2)) / n_train
+
+    # Make sure you reshape the gradient matrices to a 1D array. for instance if your gradient matrices are grad_w1 and grad_w2
+    # you would use code similar to the one below to create a flat array
+    # obj_grad = np.concatenate((grad_w1.flatten(), grad_w2.flatten()),0)
+    
+    obj_grad = np.concatenate((w1_grad.flatten(), w2_grad.flatten()), 0)
+
+    return (obj_val, obj_grad)
     
 # Replace this with your nnPredict implementation
 def nnPredict(w1,w2,data):
+    n = data.shape[0]
+    labels = np.zeros((n, 1))
+    
+    data = np.hstack([data, np.ones((n, 1))])
+    
+    layer_one_net = np.dot(data, w1.T)
+    layer_one_out = sigmoid(layer_one_net)
+    layer_one_out = np.hstack([layer_one_out, np.ones((n, 1))])
+    
+    output_net = np.dot(layer_one_out, w2.T)
+    output = sigmoid(output_net)
+    
+    for i in range(n):
+        labels[i] = np.argmax(output[i])
+
+    return labels
 
 # Do not change this
 def preprocess():

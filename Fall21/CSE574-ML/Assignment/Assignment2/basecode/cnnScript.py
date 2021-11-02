@@ -1,5 +1,6 @@
 # matplotlib inline
 import matplotlib.pyplot as plt
+import tensorflow_datasets as td
 import tensorflow as tf
 import numpy as np
 from sklearn.metrics import confusion_matrix
