@@ -1,6 +1,5 @@
 # matplotlib inline
 import matplotlib.pyplot as plt
-import tensorflow_datasets as td
 import tensorflow as tf
 import numpy as np
 from sklearn.metrics import confusion_matrix
@@ -10,11 +9,11 @@ from datetime import timedelta
 tf.__version__
 
 # Convolutional Layer 1.
-filter_size1 = 5          # Convolution filters are 5 x 5 pixels.
-num_filters1 = 16         # There are 16 of these filters.
+filter_size1 = 10          # Convolution filters are 5 x 5 pixels.
+num_filters1 = 36         # There are 16 of these filters.
 
 # Convolutional Layer 2.
-filter_size2 = 5          # Convolution filters are 5 x 5 pixels.
+filter_size2 = 10          # Convolution filters are 5 x 5 pixels.
 num_filters2 = 36         # There are 36 of these filters.
 
 # Fully-connected layer.
@@ -415,7 +414,7 @@ optimize(num_iterations=99) # We already performed 1 iteration above.
 print_test_accuracy(show_example_errors=False)
 optimize(num_iterations=900) # We performed 100 iterations above.
 print_test_accuracy(show_example_errors=False)
-optimize(num_iterations=9000)
+optimize(num_iterations=5000)
 print_test_accuracy(show_example_errors=False)
 session.close()
 

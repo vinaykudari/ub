@@ -3,6 +3,8 @@ from scipy.optimize import minimize
 from scipy.io import loadmat
 from math import sqrt, exp
 
+import pickle
+
 
 def initializeWeights(n_in, n_out):
     """
@@ -48,13 +50,15 @@ def preprocess():
 
      Some suggestions for preprocessing step:
      - feature selection"""
+    
+    global selected_idx
 
     mat = loadmat('mnist_all.mat')  # loads the MAT object as a Dictionary
 
     # Split the training sets into two sets of 50000 randomly sampled training examples and 10000 validation examples.     
-    train_size = 50_000
-    valid_size = 10_000
-    test_size  = 10_000
+    train_size = 50000
+    valid_size = 10000
+    test_size  = 10000
 
     feature_size = 784
 
@@ -94,6 +98,8 @@ def preprocess():
     for i in range(feature_size):
         if train_data[:, i].min() == train_data[:, i].max() and validation_data[:, i].min() == validation_data[:, i].max():
             idx_to_del.append(i)
+        else:
+            selected_idx.append(i)
         
     train_data = np.delete(train_data, idx_to_del, axis=1)
     validation_data = np.delete(validation_data, idx_to_del, axis=1)
@@ -237,6 +243,7 @@ def nnPredict(w1, w2, data):
 
 
 """**************Neural Network Script Starts here********************************"""
+selected_idx = []
 
 train_data, train_label, validation_data, validation_label, test_data, test_label = preprocess()
 
@@ -246,7 +253,7 @@ train_data, train_label, validation_data, validation_label, test_data, test_labe
 n_input = train_data.shape[1]
 
 # set the number of nodes in hidden unit (not including bias unit)
-n_hidden = 100
+n_hidden = 300
 
 # set the number of nodes in output unit
 n_class = 10
@@ -297,3 +304,7 @@ predicted_label = nnPredict(w1, w2, test_data)
 # find the accuracy on Validation Dataset
 
 print('\n Test set Accuracy:' + str(100 * np.mean((predicted_label == test_label).astype(float))) + '%')
+
+# code to save pickle file
+# pickle_name = 'params.pickle'
+# pickle.dump((selected_idx, n_hidden, w1, w2, lambdaval), open(pickle_name, "wb"))

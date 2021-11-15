@@ -1,7 +1,7 @@
 '''
 Comparing single layer MLP with deep MLP (using TensorFlow)
 '''
-
+import time
 import numpy as np
 import pickle
 from scipy.optimize import minimize
@@ -126,12 +126,13 @@ def preprocess():
     return train_x, train_y, valid_x, valid_y, test_x, test_y
 
 """**************Neural Network Script Starts here********************************"""
+start_time = time.time()
 train_data, train_label, validation_data, validation_label, test_data, test_label = preprocess()
 #  Train Neural Network
 # set the number of nodes in input unit (not including bias unit)
 n_input = train_data.shape[1]
 # set the number of nodes in hidden unit (not including bias unit)
-n_hidden = 256
+n_hidden = 1536
 # set the number of nodes in output unit
 n_class = 2
 
@@ -163,3 +164,4 @@ print('\n Validation set Accuracy:' + str(100*np.mean((predicted_label == valida
 predicted_label = nnPredict(w1,w2,test_data)
 #find the accuracy on Validation Dataset
 print('\n Test set Accuracy:' +  str(100*np.mean((predicted_label == test_label).astype(float))) + '%')
+print(f'Time Taken: {time.time() - start_time}')
