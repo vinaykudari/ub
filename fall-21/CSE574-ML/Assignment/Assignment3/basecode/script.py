@@ -192,7 +192,7 @@ def mlrObjFunction(params, *args):
     error = -(np.sum(Y * np.log(theta)))
     error_grad = np.dot(X.T, theta - labeli).ravel()
     
-    print(error)
+    print(f'Error: {error}')
 
     return error, error_grad
 
@@ -226,9 +226,7 @@ def mlrPredict(W, data):
     return label
 
 
-"""
-Script for Logistic Regression
-"""
+print("""Script for Logistic Regression""")
 train_data, train_label, validation_data, validation_label, test_data, test_label = preprocess()
 
 # number of classes
@@ -248,6 +246,7 @@ for i in range(n_class):
 W = np.zeros((n_feature + 1, n_class))
 initialWeights = np.zeros((n_feature + 1, 1))
 opts = {'maxiter': 100}
+
 for i in range(n_class):
     print(f'Traning {i}th class')
     labeli = Y[:, i].reshape(n_train, 1)
@@ -268,27 +267,28 @@ print('\n Validation set Accuracy:' + str(100 * np.mean((predicted_label == vali
 predicted_label = blrPredict(W, test_data)
 print('\n Testing set Accuracy:' + str(100 * np.mean((predicted_label == test_label).astype(float))) + '%')
 
+print("""Script for Support Vector Machine""")
 """
 Script for Support Vector Machine
 """
 
 print('\n\n--------------SVM-------------------\n\n')
-##################
+#################
 # YOUR CODE HERE #
-##################
+#################
 
-# idxs = np.random.permutation(10000)
-# n_train_data = train_data[idxs]
-# n_train_label = train_label[idxs]
+idxs = np.random.permutation(10000)
+n_train_data = train_data
+n_train_label = train_label
 
-# print('Linear kernel')
-# clf = svm.SVC(kernel='linear')
-# clf.fit(n_train_data, n_train_label.flatten())
-# print(f'Training set Accuracy: {100*clf.score(n_train_data, n_train_label)}%')
-# print(f'Validation set Accuracy: {100*clf.score(validation_data, validation_label)}%')
-# print(f'Testing set Accuracy: {100*clf.score(test_data, test_label)}%')
+print('Linear kernel')
+clf = svm.SVC(kernel='linear')
+clf.fit(n_train_data, n_train_label.flatten())
+print(f'Training set Accuracy: {100*clf.score(n_train_data, n_train_label)}%')
+print(f'Validation set Accuracy: {100*clf.score(validation_data, validation_label)}%')
+print(f'Testing set Accuracy: {100*clf.score(test_data, test_label)}%')
 
-# print('\n\n---------------------------------\n\n')
+print('\n\n---------------------------------\n\n')
 
 # print('Radial basis function, gamma = 1')
 # clf = svm.SVC(kernel='rbf', gamma=1.0)
@@ -297,20 +297,30 @@ print('\n\n--------------SVM-------------------\n\n')
 # print(f'Validation set Accuracy: {100*clf.score(validation_data, validation_label)}%')
 # print(f'Testing set Accuracy: {100*clf.score(test_data, test_label)}%')
 
-# print('\n\n---------------------------------\n\n')
+print('\n\n---------------------------------\n\n')
 
-# print('Radial basis function, gamma = 0')
-# clf = svm.SVC(kernel='rbf')
-# clf.fit(n_train_data, n_train_label.flatten())
-# print(f'Training set Accuracy: {100*clf.score(n_train_data, n_train_label)}%')
-# print(f'Validation set Accuracy: {100*clf.score(validation_data, validation_label)}%')
-# print(f'Testing set Accuracy: {100*clf.score(test_data, test_label)}%')
+print('Radial basis function, gamma = 0')
+clf = svm.SVC(kernel='rbf')
+clf.fit(n_train_data, n_train_label.flatten())
+print(f'Training set Accuracy: {100*clf.score(n_train_data, n_train_label)}%')
+print(f'Validation set Accuracy: {100*clf.score(validation_data, validation_label)}%')
+print(f'Testing set Accuracy: {100*clf.score(test_data, test_label)}%')
 
 
-# print('\n\n---------------------------------\n\n')
+print('\n\n---------------------------------\n\n')
 
-# print('Radial basis function, gamma = 0')
+# Radial basis function with C = 1, 10, 20 ... 100
+print('\n\n SVM with radial basis function, different values of C')
+for i in range(11):
+    print(f'C={i}')
+    clf = svm.SVC(C=i+1, kernel='rbf')
+    clf.fit(train_data, train_label.flatten())
+    train_accuracy = 100*clf.score(train_data, train_label)
+    valid_accuracy = 100*clf.score(validation_data, validation_label)
+    test_accuracy = 100*clf.score(test_data, test_label)
+    print(f'train_accuracy: {train_accuracy}, valid_accuracy: {valid_accuracy}, test_accuracy: {test_accuracy}')
 
+print('Script for Extra Credit Part')
 """
 Script for Extra Credit Part
 """
