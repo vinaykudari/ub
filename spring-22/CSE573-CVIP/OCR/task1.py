@@ -18,6 +18,12 @@ import glob
 import cv2
 import numpy as np
 
+class Matcher:
+    def __init__(self, s_idx, t_idx, score):
+        self.s_idx = s_idx
+        self.t_idx = t_idx
+        self.score = score
+
 
 def read_image(img_path, show=False):
     """Reads an image into memory as a grayscale array.
