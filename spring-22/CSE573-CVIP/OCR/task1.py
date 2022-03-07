@@ -140,6 +140,7 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=4):
     n_component = 0
     heights = []
 
+    # sharpen test image
     kernel = np.array(
         [
             [0, -1, 0],
@@ -225,7 +226,7 @@ def recognition(dist_measure, threshold=330 , char_path='char_features.json', te
         match_ch = 'UNKNOWN'
         for ch in matching_chars:
             match_desc = matching_chars[ch]
-            scores = matcher(tgt_desc, match_desc, dist_measure)
+            scores = matcher(match_desc, tgt_desc, dist_measure)
             mean_score = sum(scores) / len(scores) if scores else 0
             if mean_score <= threshold:
                 if mean_score < min_score:
