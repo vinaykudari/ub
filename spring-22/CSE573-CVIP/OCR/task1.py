@@ -88,7 +88,7 @@ def ocr(test_img, characters):
     # feature extractor
     sift = cv2.SIFT_create()
     n_padding = 3
-    n_scale = 1
+    n_scale = 3
 
     enrollment(
         characters=characters,
@@ -106,7 +106,7 @@ def ocr(test_img, characters):
 
     res = recognition(
         dist_measure=norm_l2,
-        threshold=328,
+        threshold=330,
     )
     return res
 
@@ -183,11 +183,13 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=4):
         component = components[n_component]
         left, right = component['left'], component['right']
         top, bottom = component['top'], component['bottom']
-        img = bin_img[left:right + 1, top:bottom + 1]
+        img = bin_img[left:right + 2, top:bottom + 2]
         # pad image
         img_p = np.pad(img, n_padding, constant_values=255.).astype(np.uint8)
-        img_ex = expand(img_p, n_scale)
-        _, descriptor = extract_features(image=img_ex, extractor=extractor)
+        if min(img_p.shape) < 29:
+            img_p = expand(img_p, n_scale)
+
+        _, descriptor = extract_features(image=img_p, extractor=extractor)
         component_features[n_component]  = {
             'coordinates': {
                 'x': top,
