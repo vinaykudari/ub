@@ -15,14 +15,16 @@ import argparse
 import json
 import os
 import glob
+import sys
+from collections import defaultdict
+
 import cv2
 import numpy as np
 
-class Matcher:
-    def __init__(self, s_idx, t_idx, score):
-        self.s_idx = s_idx
-        self.t_idx = t_idx
-        self.score = score
+from helper import extract_features, threshold, connected_components, expand, matcher, norm_l2, norm_l1, \
+    gaussian_kernel, convolve, otsu
+
+sys.setrecursionlimit(10**6)
 
 
 def read_image(img_path, show=False):
@@ -83,27 +85,50 @@ def ocr(test_img, characters):
     """
     # TODO Add your code here. Do not modify the return and input arguments
 
-    enrollment()
+    # feature extractor
+    sift = cv2.SIFT_create()
+    n_padding = 3
+    n_scale = 1
 
-    detection()
+    enrollment(
+        characters=characters,
+        extractor=sift,
+        n_padding=n_padding,
+    )
 
-    recognition()
+    detection(
+        test_img=test_img,
+        threshold_func=otsu,
+        extractor=sift,
+        n_padding=n_padding,
+        n_scale=n_scale,
+    )
 
-    raise NotImplementedError
+    res = recognition(
+        dist_measure=norm_l2,
+        threshold=328,
+    )
+    return res
 
 
-def enrollment():
+def enrollment(characters, extractor, n_padding=4):
     """ Args:
         You are free to decide the input arguments.
     Returns:
     You are free to decide the return.
     """
-    # TODO: Step 1 : Your Enrollment code should go here.
+    char_features = {}
+    for name, img in characters:
+        # pad image
+        img_p = np.pad(img, n_padding, constant_values=255.)
+        _, descriptor = extract_features(img_p, extractor)
+        char_features[name] = descriptor.tolist()
 
-    raise NotImplementedError
+    with open('char_features.json', 'w') as f:
+        json.dump(char_features, f)
 
 
-def detection():
+def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=4):
     """ 
     Use connected component labeling to detect various characters in an test_img.
     Args:
@@ -111,27 +136,114 @@ def detection():
     Returns:
     You are free to decide the return.
     """
-    # TODO: Step 2 : Your Detection code should go here.
-    raise NotImplementedError
+    flag = True
+    n_component = 0
+    heights = []
+
+    kernel = np.array(
+        [
+            [0, -1, 0],
+            [-1, 5, -1],
+            [0, -1, 0],
+        ]
+    )
+    test_img = convolve(test_img, kernel, stride=1)
+    components = defaultdict(dict)
+    h, w = test_img.shape
+    bin_img = threshold_func(test_img, 100).astype(np.int16)
+    component_features = {}
+
+    # get heights of each line in the image
+    for i in range(h):
+        row = (bin_img[i, :] == 0.).any()
+        if row == flag:
+            if flag:
+                heights.append([i])
+            else:
+                heights[-1].append(i)
+            flag = not flag
+
+    # set background pixel values to -1 to facilitate DFS
+    for i in range(h):
+        for j in range(w):
+            if bin_img[i][j] == 255:
+                bin_img[i][j] = -1
+
+    for h1, h2 in heights:
+        # break image line by line and find connected components
+        n_component = connected_components(
+            bin_img[h1:h2+1, :],
+            n_component,
+            components,
+            h1,
+            foreground=0,
+        )
+
+    for n_component in components:
+        component = components[n_component]
+        left, right = component['left'], component['right']
+        top, bottom = component['top'], component['bottom']
+        img = bin_img[left:right + 1, top:bottom + 1]
+        # pad image
+        img_p = np.pad(img, n_padding, constant_values=255.).astype(np.uint8)
+        img_ex = expand(img_p, n_scale)
+        _, descriptor = extract_features(image=img_ex, extractor=extractor)
+        component_features[n_component]  = {
+            'coordinates': {
+                'x': top,
+                'y': left,
+                'w': bottom - top + 1,
+                'h': right - left + 1,
+            },
+            'descriptor': descriptor.tolist() if descriptor is not None else [],
+        }
+
+    with open('test_char_features.json', 'w') as f:
+        json.dump(component_features, f)
 
 
-def recognition():
+
+def recognition(dist_measure, threshold=330 , char_path='char_features.json', test_char_path='test_char_features.json'):
     """ 
     Args:
         You are free to decide the input arguments.
     Returns:
     You are free to decide the return.
     """
-    # TODO: Step 3 : Your Recognition code should go here.
+    res = []
+    with open(char_path) as char_f:
+        matching_chars = json.loads(char_f.read())
 
-    raise NotImplementedError
+    with open(test_char_path) as test_char_f:
+        test_chars = json.loads(test_char_f.read())
+
+    for n_component in test_chars:
+        tgt_desc = test_chars[n_component]['descriptor']
+        min_score = float('inf')
+        match_ch = 'UNKNOWN'
+        for ch in matching_chars:
+            match_desc = matching_chars[ch]
+            scores = matcher(tgt_desc, match_desc, dist_measure)
+            mean_score = sum(scores) / len(scores) if scores else 0
+            if mean_score <= threshold:
+                if mean_score < min_score:
+                    min_score = mean_score
+                    match_ch = ch
+        
+        res.append(
+            {
+                'bbox': list(test_chars[n_component]['coordinates'].values()),
+                'name': match_ch,
+            },
+        )
+
+    return res
 
 
-def save_results(coordinates, rs_directory):
+def save_results(results, rs_directory):
     """
     Donot modify this code
     """
-    results = []
     with open(os.path.join(rs_directory, 'results.json'), "w") as file:
         json.dump(results, file)
 
