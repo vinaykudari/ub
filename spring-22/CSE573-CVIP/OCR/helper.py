@@ -56,6 +56,23 @@ def otsu(image, *args, **kwargs):
     return output
 
 
+def gaussian_pyramid(image, n, kernel_len=5, sigma=1):
+    image = image.copy()
+    res = []
+    for i in range(n):
+        image = convolve(
+            image=image,
+            kernel=gaussian_kernel(
+                size=kernel_len,
+                sigma=sigma,
+            ),
+            stride=2,
+        )
+        res.append(image)
+
+    return res
+
+
 def convolve(image, kernel, stride, padding=0):
     img_h, img_w = image.shape
     k_h, k_w = kernel.shape

@@ -22,7 +22,7 @@ import cv2
 import numpy as np
 
 from helper import extract_features, connected_components, expand, matcher, norm_l2, norm_l1, \
-    gaussian_kernel, convolve, otsu
+    gaussian_kernel, convolve, otsu, gaussian_pyramid
 
 sys.setrecursionlimit(10 ** 6)
 
@@ -89,18 +89,21 @@ def ocr(test_img, characters):
     sift = cv2.SIFT_create()
     n_padding = 3
     n_scale = 3
+    
+    # test_img = gaussian_pyramid(test_img, 2)[1]
+    # test_img = expand(test_img, 3)
 
     enrollment(
         characters=characters,
         extractor=sift,
-        n_padding=n_padding,
+        n_padding=3,
     )
 
     detection(
         test_img=test_img,
         threshold_func=otsu,
         extractor=sift,
-        n_padding=n_padding,
+        n_padding=2,
         n_scale=n_scale,
     )
 
@@ -128,7 +131,7 @@ def enrollment(characters, extractor, n_padding=4):
         json.dump(char_features, f)
 
 
-def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=4):
+def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=1):
     """ 
     Use connected component labeling to detect various characters in an test_img.
     Args:
@@ -141,14 +144,14 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=4):
     heights = []
 
     # sharpen test image
-    kernel = np.array(
-        [
-            [0, -1, 0],
-            [-1, 5, -1],
-            [0, -1, 0],
-        ]
-    )
-    test_img = convolve(test_img, kernel, stride=1)
+    # kernel = np.array(
+    #     [
+    #         [0, -1, 0],
+    #         [-1, 5, -1],
+    #         [0, -1, 0],
+    #     ]
+    # )
+    # test_img = convolve(test_img, kernel, stride=1)
     components = defaultdict(dict)
     h, w = test_img.shape
     bin_img = threshold_func(test_img, 100).astype(np.int16)
@@ -179,6 +182,7 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=4):
             h1,
             foreground=0,
         )
+    # print(list(components.keys()))
 
     for n_component in components:
         component = components[n_component]
@@ -187,7 +191,7 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=4):
         img = bin_img[left:right + 2, top:bottom + 2]
         # pad image
         img_p = np.pad(img, n_padding, constant_values=255.).astype(np.uint8)
-        if min(img_p.shape) < 29:
+        if min(img_p.shape) < 20:
             img_p = expand(img_p, n_scale)
 
         _, descriptor = extract_features(image=img_p, extractor=extractor)
@@ -220,6 +224,7 @@ def recognition(dist_measure, threshold=330, char_path='char_features.json', tes
         test_chars = json.loads(test_char_f.read())
 
     for n_component in test_chars:
+        print(f'For {n_component}')
         tgt_desc = test_chars[n_component]['descriptor']
         min_score = float('inf')
         match_ch = 'UNKNOWN'
@@ -232,11 +237,12 @@ def recognition(dist_measure, threshold=330, char_path='char_features.json', tes
             else:
                 scores = matcher(tgt_desc, match_desc, dist_measure)
             mean_score = sum(scores) / len(scores) if scores else 0
+            print(ch, mean_score)
             if mean_score <= threshold:
                 if mean_score < min_score:
                     min_score = mean_score
                     match_ch = ch
-
+        print("\n")
         res.append(
             {
                 'bbox': list(test_chars[n_component]['coordinates'].values()),
