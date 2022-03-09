@@ -5,11 +5,14 @@ def extract_features(image, extractor):
     keypoints, desc = extractor.detectAndCompute(image, None)
     return keypoints, desc
 
+
 def norm_l2(a, b):
-    return np.linalg.norm(np.asarray(a)-np.asarray(b))
+    return np.linalg.norm(np.asarray(a) - np.asarray(b))
+
 
 def norm_l1(a, b):
-    return np.linalg.norm((np.asarray(a)-np.asarray(b)), ord=1)
+    return np.linalg.norm((np.asarray(a) - np.asarray(b)), ord=1)
+
 
 def threshold(image, val=0.0, reverse=False):
     if reverse:
@@ -22,10 +25,11 @@ def threshold(image, val=0.0, reverse=False):
 
     return image
 
-def otsu(gray, *args, **kwargs):
-    pixel_number = gray.shape[0] * gray.shape[1]
-    mean_weight = 1.0/pixel_number
-    his, bins = np.histogram(gray, np.arange(0,257))
+
+def otsu(image, *args, **kwargs):
+    pixel_number = image.shape[0] * image.shape[1]
+    mean_weight = 1.0 / pixel_number
+    his, bins = np.histogram(image, np.arange(0, 257))
     final_thresh = -1
     final_value = -1
     intensity_arr = np.arange(256)
@@ -36,8 +40,8 @@ def otsu(gray, *args, **kwargs):
         Wb = pcb * mean_weight
         Wf = pcf * mean_weight
 
-        mub = np.sum(intensity_arr[:t]*his[:t]) / float(pcb)
-        muf = np.sum(intensity_arr[t:]*his[t:]) / float(pcf)
+        mub = np.sum(intensity_arr[:t] * his[:t]) / float(pcb)
+        muf = np.sum(intensity_arr[t:] * his[t:]) / float(pcf)
 
         value = Wb * Wf * (mub - muf) ** 2
 
@@ -45,11 +49,12 @@ def otsu(gray, *args, **kwargs):
             final_thresh = t
             final_value = value
 
-    final_img = gray.copy()
-    final_img[gray > final_thresh] = 255
-    final_img[gray < final_thresh] = 0
+    output = image.copy()
+    output[image > final_thresh] = 255
+    output[image < final_thresh] = 0
 
-    return final_img
+    return output
+
 
 def convolve(image, kernel, stride, padding=0):
     img_h, img_w = image.shape
@@ -61,19 +66,21 @@ def convolve(image, kernel, stride, padding=0):
     output = []
     image = np.pad(image, pad_width=padding)
 
-    for i in range(0, img_h-k_h+1, stride):
-        for j in range(0, img_w-k_w+1, stride):
-            region = image[i:i+k_h, j:j+k_w]
+    for i in range(0, img_h - k_h + 1, stride):
+        for j in range(0, img_w - k_w + 1, stride):
+            region = image[i:i + k_h, j:j + k_w]
             output.append(np.multiply(region, kernel).sum())
 
     output = np.asarray(output).reshape(h, w)
     return output
+
 
 def gaussian_kernel(size, sigma):
     kernel_1d = np.linspace(- (size // 2), size // 2, size)
     gauss = np.exp(-0.5 * np.square(kernel_1d) / np.square(sigma))
     kernel_2d = np.outer(gauss, gauss)
     return kernel_2d / np.sum(kernel_2d)
+
 
 def matcher(s_desc, t_desc, measure, reverse=False):
     arr = []
@@ -91,7 +98,7 @@ def matcher(s_desc, t_desc, measure, reverse=False):
 
 
 def expand(image, factor=2):
-    "Nearest neighbour interpolation"
+    """Nearest neighbour interpolation"""
     img_h, img_w = image.shape
     h, w = img_h * factor, img_w * factor
     output = []
@@ -100,8 +107,8 @@ def expand(image, factor=2):
         for j in range(img_w):
             for _ in range(factor):
                 output.append(image[i][j])
-        for _ in range(factor-1):
-            output += output[-img_w*factor:]
+        for _ in range(factor - 1):
+            output += output[-img_w * factor:]
 
     output = np.asarray(output).reshape(h, w)
     return output

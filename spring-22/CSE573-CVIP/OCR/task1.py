@@ -21,10 +21,10 @@ from collections import defaultdict
 import cv2
 import numpy as np
 
-from helper import extract_features, threshold, connected_components, expand, matcher, norm_l2, norm_l1, \
+from helper import extract_features, connected_components, expand, matcher, norm_l2, norm_l1, \
     gaussian_kernel, convolve, otsu
 
-sys.setrecursionlimit(10**6)
+sys.setrecursionlimit(10 ** 6)
 
 
 def read_image(img_path, show=False):
@@ -173,7 +173,7 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=4):
     for h1, h2 in heights:
         # break image line by line and find connected components
         n_component = connected_components(
-            bin_img[h1:h2+1, :],
+            bin_img[h1:h2 + 1, :],
             n_component,
             components,
             h1,
@@ -191,7 +191,7 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=4):
             img_p = expand(img_p, n_scale)
 
         _, descriptor = extract_features(image=img_p, extractor=extractor)
-        component_features[n_component]  = {
+        component_features[n_component] = {
             'coordinates': {
                 'x': top,
                 'y': left,
@@ -205,8 +205,7 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=4):
         json.dump(component_features, f)
 
 
-
-def recognition(dist_measure, threshold=330 , char_path='char_features.json', test_char_path='test_char_features.json'):
+def recognition(dist_measure, threshold=330, char_path='char_features.json', test_char_path='test_char_features.json'):
     """ 
     Args:
         You are free to decide the input arguments.
@@ -226,13 +225,18 @@ def recognition(dist_measure, threshold=330 , char_path='char_features.json', te
         match_ch = 'UNKNOWN'
         for ch in matching_chars:
             match_desc = matching_chars[ch]
-            scores = matcher(match_desc, tgt_desc, dist_measure)
+            m_s = len(match_desc)
+            t_s = len(tgt_desc)
+            if m_s > t_s:
+                scores = matcher(match_desc, tgt_desc, dist_measure)
+            else:
+                scores = matcher(tgt_desc, match_desc, dist_measure)
             mean_score = sum(scores) / len(scores) if scores else 0
             if mean_score <= threshold:
                 if mean_score < min_score:
                     min_score = mean_score
                     match_ch = ch
-        
+
         res.append(
             {
                 'bbox': list(test_chars[n_component]['coordinates'].values()),
