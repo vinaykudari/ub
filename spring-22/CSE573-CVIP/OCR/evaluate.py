@@ -47,7 +47,7 @@ def main():
             if p_value["name"] == name:
                 iou = compute_iou(p_value["bbox"], bbox)
                 if iou > args.iou:
-                    print(f'gt: {i}, pred: {j}')
+                    # print(f'gt: {i}, pred: {j}')
                     c += 1
                     detected = True
         judges.append(detected)

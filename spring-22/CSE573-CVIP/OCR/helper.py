@@ -1,8 +1,6 @@
 import cv2
 import numpy as np
 import heapq
-from scipy.spatial.distance import correlation
-from scipy.stats import *
 
 
 def extract_features(image, extractor):
@@ -10,63 +8,49 @@ def extract_features(image, extractor):
     return keypoints, desc
 
 
-def n_cross_corr(a, b):
-    return correlation(a, b)
+def norm(a, b, n):
+    if not isinstance(a, np.ndarray):
+        a = np.asarray(a)
+
+    if not isinstance(b, np.ndarray):
+        b = np.asarray(b)
+
+    res = np.sum(np.abs(a - b)**n, axis=-1)**(1./n)
+    return res
 
 
-def norm_l2(a, b):
-    return np.linalg.norm(np.asarray(a) - np.asarray(b))
+def hist(image):
+    res = {i: 0 for i in range(256)}
+    h, w = image.shape
+    for i in range(h):
+        for j in range(w):
+            res[image[i][j]] += 1
 
-
-def norm_l4(a, b):
-    return np.linalg.norm(np.asarray(a) - np.asarray(b), ord=4)
-
-
-def norm_l1(a, b):
-    return np.linalg.norm((np.asarray(a) - np.asarray(b)), ord=1)
-
-
-def earth_mover_distance(a, b):
-    return wasserstein_distance(a, b)
-
-
-def measure(a, b):
-    pass
-
-
-def threshold(image, val=0.0, reverse=False):
-    if reverse:
-        background = image[:, :] > val
-    else:
-        background = image[:, :] < val
-
-    image[~background] = 255
-    image[background] = 0
-
-    return image
+    return list(res.values()), list(res.keys())
 
 
 def otsu(image, *args, **kwargs):
-    pixel_number = image.shape[0] * image.shape[1]
-    mean_weight = 1.0 / pixel_number
+    total_pixels = image.shape[0] * image.shape[1]
+    mean_weight = 1.0 / total_pixels
     his, bins = np.histogram(image, np.arange(0, 257))
+    # his, bins = hist(image=image)
     final_thresh = -1
     final_value = -1
     intensity_arr = np.arange(256)
 
-    for t in bins[1:-1]:
-        pcb = np.sum(his[:t])
-        pcf = np.sum(his[t:])
-        Wb = pcb * mean_weight
-        Wf = pcf * mean_weight
+    for thresh in bins[1:-1]:
+        left = np.sum(his[:thresh])
+        right = np.sum(his[thresh:])
+        w_left = left * mean_weight
+        w_right = right * mean_weight
 
-        mub = np.sum(intensity_arr[:t] * his[:t]) / float(pcb)
-        muf = np.sum(intensity_arr[t:] * his[t:]) / float(pcf)
+        mub = np.sum(intensity_arr[:thresh] * his[:thresh]) / float(left)
+        muf = np.sum(intensity_arr[thresh:] * his[thresh:]) / float(right)
 
-        value = Wb * Wf * (mub - muf) ** 2
+        value = w_left * w_right * (mub - muf) ** 2
 
         if value > final_value:
-            final_thresh = t
+            final_thresh = thresh
             final_value = value
 
     output = image.copy()
@@ -137,13 +121,13 @@ def matcher(s_desc, t_desc, measure, thresh=0.8, reverse=False):
             if (min_1 / min_2) <= thresh:
                 arr.append(round(min_1, 2))
             else:
-                arr.append(round(sum(heap)/len(heap), 2))
+                if heap:
+                    arr.append(round(sum(heap)/len(heap), 2))
 
     return sorted(arr, reverse=reverse)
 
 
-def expand(image, factor=2):
-    """Nearest neighbour interpolation"""
+def resize(image, factor=2):
     img_h, img_w = image.shape
     h, w = img_h * factor, img_w * factor
     output = []

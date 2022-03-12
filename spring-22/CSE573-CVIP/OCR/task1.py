@@ -21,10 +21,12 @@ from collections import defaultdict
 import cv2
 import numpy as np
 
-from helper import extract_features, connected_components, expand, matcher, norm_l2, norm_l1, \
-    gaussian_kernel, convolve, otsu, gaussian_pyramid, n_cross_corr, measure, norm_l4
+from helper import extract_features, connected_components, matcher, \
+    gaussian_kernel, convolve, otsu, gaussian_pyramid, norm, resize
 
-sys.setrecursionlimit(10 ** 6)
+sys.setrecursionlimit(10**6)
+
+min_char_size = float('inf')
 
 
 def read_image(img_path, show=False):
@@ -107,6 +109,9 @@ def ocr(test_img, characters):
         n_scale=n_scale,
     )
 
+    def norm_l4(a, b):
+        return norm(a, b, 4)
+
     res = recognition(
         dist_measure=norm_l4,
         measure_type='distance',
@@ -117,6 +122,7 @@ def ocr(test_img, characters):
 
 
 def enrollment(characters, extractor, n_padding=4):
+    global min_char_size
     """ Args:
         You are free to decide the input arguments.
     Returns:
@@ -124,7 +130,7 @@ def enrollment(characters, extractor, n_padding=4):
     """
     char_features = {}
     for name, img in characters:
-        # pad image
+        min_char_size = min(min_char_size, min(img.shape))
         img_p = np.pad(img, n_padding, constant_values=255.)
         _, descriptor = extract_features(img_p, extractor)
         char_features[name] = descriptor.tolist() if descriptor.any() else []
@@ -146,8 +152,6 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=1):
     heights = []
 
     # sharpen test image
-    # g_kernel = gaussian_kernel(size=5, sigma=0.5)
-    # test_img = convolve(test_img, g_kernel, stride=1)
     # kernel = np.array(
     #     [
     #         [0, -1, 0],
@@ -156,6 +160,8 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=1):
     #     ]
     # )
     # test_img = convolve(test_img, kernel, stride=1)
+    # g_kernel = gaussian_kernel(size=3, sigma=0.5)
+    # test_img = convolve(test_img, g_kernel, stride=1)
     components = defaultdict(dict)
     h, w = test_img.shape
     bin_img = threshold_func(test_img, 100).astype(np.int16)
@@ -166,9 +172,9 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=1):
         row = (bin_img[i, :] == 0.).any()
         if row == flag:
             if flag:
-                heights.append([i])
+                heights.append([i, h])
             else:
-                heights[-1].append(i)
+                heights[-1][1] = i
             flag = not flag
 
     # set background pixel values to -1 to facilitate DFS
@@ -195,8 +201,8 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=1):
         img = bin_img[left:right + 2, top:bottom + 2]
         # pad image
         img_p = np.pad(img, n_padding, constant_values=255.).astype(np.uint8)
-        if min(img_p.shape) < 16:
-            img_p = expand(img_p, n_scale)
+        if min(img_p.shape) < (min_char_size//2) + 1:
+            img_p = resize(img_p, n_scale)
 
         _, descriptor = extract_features(image=img_p, extractor=extractor)
         component_features[n_component] = {
