@@ -23,6 +23,9 @@ def main():
         groundtruth = json.load(file)
 
     judges = []
+    c = 0
+    tc = 0
+    lis = []
 
     for i, a_value in enumerate(groundtruth):
         name = a_value["name"]
@@ -30,6 +33,8 @@ def main():
 
         if name == "UNKNOWN" :
             continue
+        else:
+            tc += 1
 
         detected = False
         for j, p_value in enumerate(preds):
@@ -42,8 +47,14 @@ def main():
             if p_value["name"] == name:
                 iou = compute_iou(p_value["bbox"], bbox)
                 if iou > args.iou:
+                    print(f'gt: {i}, pred: {j}')
+                    c += 1
                     detected = True
         judges.append(detected)
+        if detected is False:
+            lis.append((i, a_value))
+    print(f'Detected count = {c}, Tot: {tc}')
+    print(f'Chars not detected: {lis}')
 
     ntp = 0
     for i, j in enumerate(judges):
@@ -56,6 +67,8 @@ def main():
             known_preds += 1
     nfn = len(judges) - ntp
     nfp = known_preds - ntp
+
+    print(f'ntp: {ntp}, known_preds: {known_preds}, len(judges): {len(judges)}')
     
     precision = ntp / known_preds
     recall = ntp / len(judges)

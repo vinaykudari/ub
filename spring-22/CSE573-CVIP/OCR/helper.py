@@ -1,9 +1,17 @@
+import cv2
 import numpy as np
+import heapq
+from scipy.spatial.distance import correlation
+from scipy.stats import *
 
 
 def extract_features(image, extractor):
     keypoints, desc = extractor.detectAndCompute(image, None)
     return keypoints, desc
+
+
+def n_cross_corr(a, b):
+    return correlation(a, b)
 
 
 def norm_l2(a, b):
@@ -12,6 +20,14 @@ def norm_l2(a, b):
 
 def norm_l1(a, b):
     return np.linalg.norm((np.asarray(a) - np.asarray(b)), ord=1)
+
+
+def earth_mover_distance(a, b):
+    return wasserstein_distance(a, b)
+
+
+def measure(a, b):
+    pass
 
 
 def threshold(image, val=0.0, reverse=False):
@@ -99,17 +115,23 @@ def gaussian_kernel(size, sigma):
     return kernel_2d / np.sum(kernel_2d)
 
 
-def matcher(s_desc, t_desc, measure, reverse=False):
+def matcher(s_desc, t_desc, measure, thresh=0.8, reverse=False):
     arr = []
 
     for s_idx, s_d in enumerate(s_desc):
-        min_score = float('inf')
+        heap = []
         for t_idx, t_d in enumerate(t_desc):
             score = measure(s_d, t_d)
-            if score < min_score:
-                min_score = score
+            heapq.heappush(heap, score)
 
-        arr.append(round(min_score, 2))
+        if len(heap) >= 2:
+            min_1 = heapq.heappop(heap)
+            min_2 = heapq.heappop(heap)
+
+            print(round(min_1 / min_2, 2), end=' | ')
+
+            if (min_1 / min_2) <= thresh:
+                arr.append(round(min_1, 2))
 
     return sorted(arr, reverse=reverse)
 
@@ -154,6 +176,7 @@ def connected_components(arr, p, components, h, foreground, n_dir=8):
     arr = arr.copy()
     height, width = len(arr), len(arr[0])
     visited = set()
+    neighbour_idx = get_neighbours(n_dir)
 
     def dfs(i, j, p):
         nonlocal height, width, arr, visited, components
@@ -166,7 +189,6 @@ def connected_components(arr, p, components, h, foreground, n_dir=8):
         components[p]['right'] = max(components[p].get('right', float('-inf')), i + h)
         components[p]['top'] = min(components[p].get('top', float('inf')), j)
         components[p]['bottom'] = max(components[p].get('bottom', float('-inf')), j)
-        neighbour_idx = get_neighbours(n_dir)
 
         for x, y in neighbour_idx:
             dfs(i + x, j + y, p)
