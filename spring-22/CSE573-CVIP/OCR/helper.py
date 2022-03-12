@@ -18,6 +18,10 @@ def norm_l2(a, b):
     return np.linalg.norm(np.asarray(a) - np.asarray(b))
 
 
+def norm_l3(a, b):
+    return np.linalg.norm(np.asarray(a) - np.asarray(b), ord=4)
+
+
 def norm_l1(a, b):
     return np.linalg.norm((np.asarray(a) - np.asarray(b)), ord=1)
 
@@ -115,7 +119,7 @@ def gaussian_kernel(size, sigma):
     return kernel_2d / np.sum(kernel_2d)
 
 
-def matcher(s_desc, t_desc, measure, thresh=0.8, reverse=False):
+def matcher(s_desc, t_desc, measure, thresh=0.5, reverse=False):
     arr = []
 
     for s_idx, s_d in enumerate(s_desc):
