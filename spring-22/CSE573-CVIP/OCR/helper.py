@@ -1,3 +1,4 @@
+import cv2
 import numpy as np
 
 
@@ -128,6 +129,12 @@ def expand(image, factor=2):
             output += output[-img_w * factor:]
 
     output = np.asarray(output).reshape(h, w)
+    return output
+
+
+def resize(image, scale):
+    h, w = image.shape
+    output = cv2.resize(image, (int(w*scale), int(h*scale)))
     return output
 
 

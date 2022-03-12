@@ -22,7 +22,7 @@ import cv2
 import numpy as np
 
 from helper import extract_features, connected_components, expand, matcher, norm_l2, norm_l1, \
-    gaussian_kernel, convolve, otsu, gaussian_pyramid
+    gaussian_kernel, convolve, otsu, gaussian_pyramid, resize
 
 sys.setrecursionlimit(10 ** 6)
 
@@ -120,12 +120,14 @@ def enrollment(characters, extractor, n_padding=4):
     Returns:
     You are free to decide the return.
     """
-    char_features = {}
+    char_features = defaultdict(list)
     for name, img in characters:
+        h, w = img.shape
         # pad image
         img_p = np.pad(img, n_padding, constant_values=255.)
-        _, descriptor = extract_features(img_p, extractor)
-        char_features[name] = descriptor.tolist()
+        for i in range(1, 26):
+            scale = i/10
+            char_features[name].append(resize(img, scale).tolist())
 
     with open('char_features.json', 'w') as f:
         json.dump(char_features, f)
@@ -194,7 +196,6 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=1):
         if min(img_p.shape) < 20:
             img_p = expand(img_p, n_scale)
 
-        _, descriptor = extract_features(image=img_p, extractor=extractor)
         component_features[n_component] = {
             'coordinates': {
                 'x': top,
@@ -202,7 +203,7 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=1):
                 'w': bottom - top + 1,
                 'h': right - left + 1,
             },
-            'descriptor': descriptor.tolist() if descriptor is not None else [],
+            'image': img.tolist(),
         }
 
     with open('test_char_features.json', 'w') as f:
@@ -225,23 +226,15 @@ def recognition(dist_measure, threshold=330, char_path='char_features.json', tes
 
     for n_component in test_chars:
         print(f'For {n_component}')
-        tgt_desc = test_chars[n_component]['descriptor']
-        min_score = float('inf')
+        tgt_desc = test_chars[n_component]['image']
         match_ch = 'UNKNOWN'
         for ch in matching_chars:
-            match_desc = matching_chars[ch]
-            m_s = len(match_desc)
-            t_s = len(tgt_desc)
-            if m_s > t_s:
-                scores = matcher(match_desc, tgt_desc, dist_measure)
-            else:
-                scores = matcher(tgt_desc, match_desc, dist_measure)
-            mean_score = sum(scores) / len(scores) if scores else 0
-            print(ch, mean_score)
-            if mean_score <= threshold:
-                if mean_score < min_score:
-                    min_score = mean_score
-                    match_ch = ch
+            best_scale_score = 0
+            scales = matching_chars[ch]
+            for scale in scales:
+                pass
+
+
         print("\n")
         res.append(
             {
