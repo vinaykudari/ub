@@ -18,7 +18,7 @@ def norm_l2(a, b):
     return np.linalg.norm(np.asarray(a) - np.asarray(b))
 
 
-def norm_l3(a, b):
+def norm_l4(a, b):
     return np.linalg.norm(np.asarray(a) - np.asarray(b), ord=4)
 
 
@@ -119,7 +119,7 @@ def gaussian_kernel(size, sigma):
     return kernel_2d / np.sum(kernel_2d)
 
 
-def matcher(s_desc, t_desc, measure, thresh=0.5, reverse=False):
+def matcher(s_desc, t_desc, measure, thresh=0.8, reverse=False):
     arr = []
 
     for s_idx, s_d in enumerate(s_desc):
@@ -136,6 +136,8 @@ def matcher(s_desc, t_desc, measure, thresh=0.5, reverse=False):
 
             if (min_1 / min_2) <= thresh:
                 arr.append(round(min_1, 2))
+            else:
+                arr.append(round(sum(heap)/len(heap), 2))
 
     return sorted(arr, reverse=reverse)
 

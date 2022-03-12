@@ -22,7 +22,7 @@ import cv2
 import numpy as np
 
 from helper import extract_features, connected_components, expand, matcher, norm_l2, norm_l1, \
-    gaussian_kernel, convolve, otsu, gaussian_pyramid, n_cross_corr, measure, norm_l3
+    gaussian_kernel, convolve, otsu, gaussian_pyramid, n_cross_corr, measure, norm_l4
 
 sys.setrecursionlimit(10 ** 6)
 
@@ -108,10 +108,10 @@ def ocr(test_img, characters):
     )
 
     res = recognition(
-        dist_measure=norm_l3,
+        dist_measure=norm_l4,
         measure_type='distance',
         min_thresh=float('-inf'),
-        max_thresh=130,
+        max_thresh=210,
     )
     return res
 
