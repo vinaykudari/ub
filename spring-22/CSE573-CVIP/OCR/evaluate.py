@@ -68,7 +68,7 @@ def main():
     nfn = len(judges) - ntp
     nfp = known_preds - ntp
 
-    print(f'ntp: {ntp}, known_preds: {known_preds}, len(judges): {len(judges)}')
+    # print(f'ntp: {ntp}, known_preds: {known_preds}, len(judges): {len(judges)}')
     
     precision = ntp / known_preds
     recall = ntp / len(judges)

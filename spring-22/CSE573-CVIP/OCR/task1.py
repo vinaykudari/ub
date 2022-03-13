@@ -22,7 +22,7 @@ import cv2
 import numpy as np
 
 from helper import extract_features, connected_components, matcher, \
-    gaussian_kernel, convolve, otsu, gaussian_pyramid, norm, resize
+    gaussian_kernel, convolve_2d, otsu, norm, resize
 
 sys.setrecursionlimit(10**6)
 
@@ -89,34 +89,33 @@ def ocr(test_img, characters):
 
     # feature extractor
     sift = cv2.SIFT_create()
-    n_padding = 3
     n_scale = 2
-    
-    # test_img = gaussian_pyramid(test_img, 2)[1]
-    # test_img = expand(test_img, 3)
 
     enrollment(
         characters=characters,
         extractor=sift,
-        n_padding=1,
+        n_padding=2,
     )
 
     detection(
         test_img=test_img,
         threshold_func=otsu,
         extractor=sift,
-        n_padding=2,
+        n_padding=3,
         n_scale=n_scale,
     )
 
     def norm_l4(a, b):
         return norm(a, b, 4)
 
+    def norm_l2(a, b):
+        return norm(a, b, 2)
+
     res = recognition(
         dist_measure=norm_l4,
         measure_type='distance',
         min_thresh=float('-inf'),
-        max_thresh=210,
+        max_thresh=180,
     )
     return res
 
@@ -159,23 +158,12 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=1):
     #         [0, -1, 0],
     #     ]
     # )
-    # test_img = convolve(test_img, kernel, stride=1)
-    # g_kernel = gaussian_kernel(size=3, sigma=0.5)
-    # test_img = convolve(test_img, g_kernel, stride=1)
+    # test_img = convolve_2d(test_img, kernel)
     components = defaultdict(dict)
     h, w = test_img.shape
     bin_img = threshold_func(test_img, 100).astype(np.int16)
+    temp_img = threshold_func(test_img, 100)
     component_features = {}
-
-    # get heights of each line in the image
-    for i in range(h):
-        row = (bin_img[i, :] == 0.).any()
-        if row == flag:
-            if flag:
-                heights.append([i, h])
-            else:
-                heights[-1][1] = i
-            flag = not flag
 
     # set background pixel values to -1 to facilitate DFS
     for i in range(h):
@@ -183,28 +171,30 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=1):
             if bin_img[i][j] == 255:
                 bin_img[i][j] = -1
 
-    for h1, h2 in heights:
-        # break image line by line and find connected components
-        n_component = connected_components(
-            bin_img[h1:h2 + 1, :],
-            n_component,
-            components,
-            h1,
-            foreground=0,
-        )
-    print(len(list(components.keys())))
+    connected_components(
+        bin_img,
+        n_component,
+        components,
+        0,
+        foreground=0,
+    )
+    # print(len(list(components.keys())))
 
     for n_component in components:
         component = components[n_component]
         left, right = component['left'], component['right']
         top, bottom = component['top'], component['bottom']
-        img = bin_img[left:right + 2, top:bottom + 2]
-        # pad image
-        img_p = np.pad(img, n_padding, constant_values=255.).astype(np.uint8)
-        if min(img_p.shape) < (min_char_size//2) + 1:
-            img_p = resize(img_p, n_scale)
+        img = temp_img[left:right + 2, top:bottom + 2]
 
-        _, descriptor = extract_features(image=img_p, extractor=extractor)
+        g_kernel = gaussian_kernel(size=3, sigma=1)
+        img = convolve_2d(img, g_kernel)
+
+        # pad image
+        img = np.pad(img, n_padding, constant_values=255.).astype(np.uint8)
+        if min(img.shape) < 18:
+            img = resize(img, n_scale)
+
+        _, descriptor = extract_features(image=img, extractor=extractor)
         component_features[n_component] = {
             'coordinates': {
                 'x': top,
@@ -242,7 +232,7 @@ def recognition(
         test_chars = json.loads(test_char_f.read())
 
     for n_component in test_chars:
-        print(f'For {n_component}')
+        # print(f'For {n_component}')
         tgt_desc = test_chars[n_component]['descriptor']
         if measure_type == 'similarity':
             score = float('-inf')
@@ -253,12 +243,12 @@ def recognition(
         for ch in matching_chars:
             match_desc = matching_chars[ch]
             # if n_component == 0:
-            print(f'ch: {ch} | match_desc: {len(match_desc)} | tgt_desc: {len(tgt_desc)}')
+            # print(f'ch: {ch} | match_desc: {len(match_desc)} | tgt_desc: {len(tgt_desc)}')
             # tgt_desc = tgt_desc / np.linalg.norm(tgt_desc)
             # match_desc = match_desc / np.linalg.norm(match_desc)
             scores = matcher(tgt_desc, match_desc, dist_measure)
             mean_score = sum(scores) / len(scores) if scores else float('inf')
-            print(ch, mean_score)
+            # print(ch, mean_score)
             if min_thresh <= mean_score <= max_thresh:
                 if measure_type != 'similarity':
                     if mean_score < score:
@@ -268,8 +258,8 @@ def recognition(
                     if mean_score > score:
                         score = mean_score
                         match_ch = ch
-        print(f'match_ch: {match_ch}')
-        print("\n")
+        # print(f'match_ch: {match_ch}')
+        # print("\n")
         res.append(
             {
                 'bbox': list(test_chars[n_component]['coordinates'].values()),

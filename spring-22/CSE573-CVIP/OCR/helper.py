@@ -15,7 +15,7 @@ def norm(a, b, n):
     if not isinstance(b, np.ndarray):
         b = np.asarray(b)
 
-    res = np.sum(np.abs(a - b)**n, axis=-1)**(1./n)
+    res = np.sum(np.abs(a - b) ** n, axis=-1) ** (1. / n)
     return res
 
 
@@ -60,39 +60,18 @@ def otsu(image, *args, **kwargs):
     return output
 
 
-def gaussian_pyramid(image, n, kernel_len=5, sigma=1):
-    image = image.copy()
-    res = []
-    for i in range(n):
-        image = convolve(
-            image=image,
-            kernel=gaussian_kernel(
-                size=kernel_len,
-                sigma=sigma,
-            ),
-            stride=2,
-        )
-        res.append(image)
-
-    return res
-
-
-def convolve(image, kernel, stride, padding=0):
-    img_h, img_w = image.shape
-    k_h, k_w = kernel.shape
-    h = ((img_h - k_h + (2 * padding)) // stride) + 1
-    w = ((img_w - k_w + (2 * padding)) // stride) + 1
-
+def convolve_2d(image, kernel):
     kernel = np.flipud(np.fliplr(kernel))
-    output = []
-    image = np.pad(image, pad_width=padding)
+    output = np.zeros_like(image)
+    h, w = image.shape
 
-    for i in range(0, img_h - k_h + 1, stride):
-        for j in range(0, img_w - k_w + 1, stride):
-            region = image[i:i + k_h, j:j + k_w]
-            output.append(np.multiply(region, kernel).sum())
+    padded = np.zeros((h + 2, w + 2))
+    padded[1:-1, 1:-1] = image
 
-    output = np.asarray(output).reshape(h, w)
+    for i in range(w):
+        for j in range(h):
+            output[j, i] = (kernel * padded[j: j + 3, i: i + 3]).sum()
+
     return output
 
 
@@ -116,9 +95,7 @@ def matcher(s_desc, t_desc, measure, thresh=0.8, reverse=False):
             min_1 = heapq.heappop(heap)
             min_2 = heapq.heappop(heap)
 
-            print(round(min_1 / min_2, 2), end=' | ')
-
-            if (min_1 / min_2) <= thresh:
+            if (min_1 / min_2) < thresh:
                 arr.append(round(min_1, 2))
             else:
                 if heap:
