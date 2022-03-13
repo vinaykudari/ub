@@ -1,4 +1,5 @@
 import numpy as np
+import heapq
 
 
 def extract_features(image, extractor):
@@ -6,47 +7,49 @@ def extract_features(image, extractor):
     return keypoints, desc
 
 
-def norm_l2(a, b):
-    return np.linalg.norm(np.asarray(a) - np.asarray(b))
+def norm(a, b, n):
+    if not isinstance(a, np.ndarray):
+        a = np.asarray(a)
+
+    if not isinstance(b, np.ndarray):
+        b = np.asarray(b)
+
+    res = np.sum(np.abs(a - b) ** n, axis=-1) ** (1. / n)
+    return res
 
 
-def norm_l1(a, b):
-    return np.linalg.norm((np.asarray(a) - np.asarray(b)), ord=1)
+def hist(image):
+    res = {i: 0 for i in range(256)}
+    h, w = image.shape
+    for i in range(h):
+        for j in range(w):
+            res[image[i][j]] += 1
 
-
-def threshold(image, val=0.0, reverse=False):
-    if reverse:
-        background = image[:, :] > val
-    else:
-        background = image[:, :] < val
-
-    image[~background] = 255
-    image[background] = 0
-
-    return image
+    return list(res.values()), list(res.keys())
 
 
 def otsu(image, *args, **kwargs):
-    pixel_number = image.shape[0] * image.shape[1]
-    mean_weight = 1.0 / pixel_number
-    his, bins = np.histogram(image, np.arange(0, 257))
+    total_pixels = image.shape[0] * image.shape[1]
+    mean_weight = 1.0 / total_pixels
+    his, bins = hist(image)
+    # his, bins = hist(image=image)
     final_thresh = -1
     final_value = -1
     intensity_arr = np.arange(256)
 
-    for t in bins[1:-1]:
-        pcb = np.sum(his[:t])
-        pcf = np.sum(his[t:])
-        Wb = pcb * mean_weight
-        Wf = pcf * mean_weight
+    for thresh in bins[1:-1]:
+        left = np.sum(his[:thresh])
+        right = np.sum(his[thresh:])
+        w_left = left * mean_weight
+        w_right = right * mean_weight
 
-        mub = np.sum(intensity_arr[:t] * his[:t]) / float(pcb)
-        muf = np.sum(intensity_arr[t:] * his[t:]) / float(pcf)
+        mub = np.sum(intensity_arr[:thresh] * his[:thresh]) / float(left)
+        muf = np.sum(intensity_arr[thresh:] * his[thresh:]) / float(right)
 
-        value = Wb * Wf * (mub - muf) ** 2
+        value = w_left * w_right * (mub - muf) ** 2
 
         if value > final_value:
-            final_thresh = t
+            final_thresh = thresh
             final_value = value
 
     output = image.copy()
@@ -56,39 +59,18 @@ def otsu(image, *args, **kwargs):
     return output
 
 
-def gaussian_pyramid(image, n, kernel_len=5, sigma=1):
-    image = image.copy()
-    res = []
-    for i in range(n):
-        image = convolve(
-            image=image,
-            kernel=gaussian_kernel(
-                size=kernel_len,
-                sigma=sigma,
-            ),
-            stride=2,
-        )
-        res.append(image)
-
-    return res
-
-
-def convolve(image, kernel, stride, padding=0):
-    img_h, img_w = image.shape
-    k_h, k_w = kernel.shape
-    h = ((img_h - k_h + (2 * padding)) // stride) + 1
-    w = ((img_w - k_w + (2 * padding)) // stride) + 1
-
+def convolve_2d(image, kernel):
     kernel = np.flipud(np.fliplr(kernel))
-    output = []
-    image = np.pad(image, pad_width=padding)
+    output = np.zeros_like(image)
+    h, w = image.shape
 
-    for i in range(0, img_h - k_h + 1, stride):
-        for j in range(0, img_w - k_w + 1, stride):
-            region = image[i:i + k_h, j:j + k_w]
-            output.append(np.multiply(region, kernel).sum())
+    padded = np.zeros((h + 2, w + 2))
+    padded[1:-1, 1:-1] = image
 
-    output = np.asarray(output).reshape(h, w)
+    for i in range(w):
+        for j in range(h):
+            output[j, i] = (kernel * padded[j: j + 3, i: i + 3]).sum()
+
     return output
 
 
@@ -99,23 +81,29 @@ def gaussian_kernel(size, sigma):
     return kernel_2d / np.sum(kernel_2d)
 
 
-def matcher(s_desc, t_desc, measure, reverse=False):
+def matcher(s_desc, t_desc, measure, thresh=0.8, reverse=False):
     arr = []
 
     for s_idx, s_d in enumerate(s_desc):
-        min_score = float('inf')
+        heap = []
         for t_idx, t_d in enumerate(t_desc):
             score = measure(s_d, t_d)
-            if score < min_score:
-                min_score = score
+            heapq.heappush(heap, score)
 
-        arr.append(round(min_score, 2))
+        if len(heap) >= 2:
+            min_1 = heapq.heappop(heap)
+            min_2 = heapq.heappop(heap)
+
+            if (min_1 / min_2) < thresh:
+                arr.append(round(min_1, 2))
+            else:
+                if heap:
+                    arr.append(round(sum(heap)/len(heap), 2))
 
     return sorted(arr, reverse=reverse)
 
 
-def expand(image, factor=2):
-    """Nearest neighbour interpolation"""
+def resize(image, factor=2):
     img_h, img_w = image.shape
     h, w = img_h * factor, img_w * factor
     output = []
@@ -154,6 +142,7 @@ def connected_components(arr, p, components, h, foreground, n_dir=8):
     arr = arr.copy()
     height, width = len(arr), len(arr[0])
     visited = set()
+    neighbour_idx = get_neighbours(n_dir)
 
     def dfs(i, j, p):
         nonlocal height, width, arr, visited, components
@@ -166,7 +155,6 @@ def connected_components(arr, p, components, h, foreground, n_dir=8):
         components[p]['right'] = max(components[p].get('right', float('-inf')), i + h)
         components[p]['top'] = min(components[p].get('top', float('inf')), j)
         components[p]['bottom'] = max(components[p].get('bottom', float('-inf')), j)
-        neighbour_idx = get_neighbours(n_dir)
 
         for x, y in neighbour_idx:
             dfs(i + x, j + y, p)
