@@ -27,6 +27,29 @@ def threshold(image, val=0.0, reverse=False):
     return image
 
 
+def crop(image):
+    h, w = image.shape
+    top, bottom, left, right = 0, h, 0, w
+
+    for left in range(w):
+        if (image[:, left] == 0).any():
+            break
+
+    for right in range(w - 1, -1, -1):
+        if (image[:, right] == 0).any():
+            break
+
+    for top in range(h):
+        if (image[top, :] == 0).any():
+            break
+
+    for bottom in range(h - 1, -1, -1):
+        if (image[bottom, :] == 0).any():
+            break
+
+    return image[top:bottom + 1, left:right + 1]
+
+
 def otsu(image, *args, **kwargs):
     pixel_number = image.shape[0] * image.shape[1]
     mean_weight = 1.0 / pixel_number
@@ -51,8 +74,8 @@ def otsu(image, *args, **kwargs):
             final_value = value
 
     output = image.copy()
-    output[image > final_thresh] = 255
-    output[image < final_thresh] = 0
+    output[image > final_thresh] = 255.
+    output[image < final_thresh] = 0.
 
     return output
 
@@ -135,6 +158,11 @@ def expand(image, factor=2):
 def resize(image, scale):
     h, w = image.shape
     output = cv2.resize(image, (int(w*scale), int(h*scale)))
+    return output
+
+
+def resize_to(image, new_w, new_h):
+    output = cv2.resize(image, (new_w, new_h))
     return output
 
 
