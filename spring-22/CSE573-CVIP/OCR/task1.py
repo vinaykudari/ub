@@ -21,8 +21,7 @@ from collections import defaultdict
 import cv2
 import numpy as np
 
-from helper import extract_features, connected_components, expand, matcher, norm_l2, norm_l1, \
-    gaussian_kernel, convolve, otsu, gaussian_pyramid, resize, crop, resize_to
+from helper import connected_components, otsu, crop, resize_to
 
 sys.setrecursionlimit(10 ** 6)
 
@@ -108,7 +107,6 @@ def ocr(test_img, characters):
     )
 
     res = recognition(
-        dist_measure=norm_l2,
         threshold=30,
     )
     return res
@@ -198,7 +196,7 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=1):
         json.dump(component_features, f)
 
 
-def recognition(dist_measure, threshold=330, char_path='char_features.json', test_char_path='test_char_features.json'):
+def recognition(threshold=330, char_path='char_features.json', test_char_path='test_char_features.json'):
     """ 
     Args:
         You are free to decide the input arguments.
