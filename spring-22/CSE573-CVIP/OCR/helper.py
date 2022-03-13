@@ -1,4 +1,3 @@
-import cv2
 import numpy as np
 import heapq
 
@@ -32,7 +31,7 @@ def hist(image):
 def otsu(image, *args, **kwargs):
     total_pixels = image.shape[0] * image.shape[1]
     mean_weight = 1.0 / total_pixels
-    his, bins = np.histogram(image, np.arange(0, 257))
+    his, bins = hist(image)
     # his, bins = hist(image=image)
     final_thresh = -1
     final_value = -1

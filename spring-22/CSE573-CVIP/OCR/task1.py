@@ -108,9 +108,6 @@ def ocr(test_img, characters):
     def norm_l4(a, b):
         return norm(a, b, 4)
 
-    def norm_l2(a, b):
-        return norm(a, b, 2)
-
     res = recognition(
         dist_measure=norm_l4,
         measure_type='distance',
@@ -129,6 +126,7 @@ def enrollment(characters, extractor, n_padding=4):
     char_features = {}
     for name, img in characters:
         img = np.pad(img, n_padding, constant_values=255.)
+        # scale the image is its small
         if min(img.shape) < 18:
             img = resize(img, 2)
         _, descriptor = extract_features(img, extractor)
@@ -146,9 +144,7 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=1):
     Returns:
     You are free to decide the return.
     """
-    flag = True
     n_component = 0
-    heights = []
 
     # sharpen test image
     # kernel = np.array(

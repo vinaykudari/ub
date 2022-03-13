@@ -1,6 +1,6 @@
 import argparse
 import json
-import os
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -10,7 +10,6 @@ def parse_args():
     parser.add_argument("--beta", default=1)
     args = parser.parse_args()
     return args
-
 
 
 def main():
@@ -23,38 +22,27 @@ def main():
         groundtruth = json.load(file)
 
     judges = []
-    c = 0
-    tc = 0
-    lis = []
 
     for i, a_value in enumerate(groundtruth):
         name = a_value["name"]
         bbox = a_value["bbox"]
 
-        if name == "UNKNOWN" :
+        if name == "UNKNOWN":
             continue
-        else:
-            tc += 1
 
         detected = False
         for j, p_value in enumerate(preds):
             if detected:
                 break
 
-            if p_value["name"] == "UNKNOWN" :
+            if p_value["name"] == "UNKNOWN":
                 continue
 
             if p_value["name"] == name:
                 iou = compute_iou(p_value["bbox"], bbox)
                 if iou > args.iou:
-                    # print(f'gt: {i}, pred: {j}')
-                    c += 1
                     detected = True
         judges.append(detected)
-        if detected is False:
-            lis.append((i, a_value))
-    print(f'Detected count = {c}, Tot: {tc}')
-    print(f'Chars not detected: {lis}')
 
     ntp = 0
     for i, j in enumerate(judges):
@@ -62,14 +50,12 @@ def main():
             ntp += 1
     if ntp == 0: return 0
     known_preds = 0
-    for pred in preds :
-        if pred["name"] != "UNKNOWN" :
+    for pred in preds:
+        if pred["name"] != "UNKNOWN":
             known_preds += 1
     nfn = len(judges) - ntp
     nfp = known_preds - ntp
 
-    # print(f'ntp: {ntp}, known_preds: {known_preds}, len(judges): {len(judges)}')
-    
     precision = ntp / known_preds
     recall = ntp / len(judges)
     fbeta = (1 + args.beta ** 2) * precision * recall / ((args.beta ** 2 * precision) + recall)
@@ -77,7 +63,7 @@ def main():
 
 
 def compute_iou(bbox1, bbox2):
-    #ensure each element in the first bounding box is not negative
+    # ensure each element in the first bounding box is not negative
     if any(t < 0 for t in bbox1): return 0.
 
     x_min = max(bbox1[0], bbox2[0])
@@ -85,14 +71,14 @@ def compute_iou(bbox1, bbox2):
     x_max = min(bbox1[0] + bbox1[2], bbox2[0] + bbox2[2])
     y_max = min(bbox1[1] + bbox1[3], bbox2[1] + bbox2[3])
 
-    #the area of intersection
-    intersection_area = max(0, x_max-x_min)*max(0, y_max-y_min)
-    #bbox1 area
-    bbox1_area = bbox1[2]*bbox1[3]
-    #bbox2 area 
-    bbox2_area = bbox2[2]*bbox2[3]
-    #compute IOU
-    iou = intersection_area / (bbox1_area+bbox2_area - intersection_area)
+    # the area of intersection
+    intersection_area = max(0, x_max - x_min) * max(0, y_max - y_min)
+    # bbox1 area
+    bbox1_area = bbox1[2] * bbox1[3]
+    # bbox2 area
+    bbox2_area = bbox2[2] * bbox2[3]
+    # compute IOU
+    iou = intersection_area / (bbox1_area + bbox2_area - intersection_area)
     return iou
 
 
