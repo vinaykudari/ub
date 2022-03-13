@@ -1,3 +1,5 @@
+import heapq
+
 import cv2
 import numpy as np
 
@@ -7,24 +9,15 @@ def extract_features(image, extractor):
     return keypoints, desc
 
 
-def norm_l2(a, b):
-    return np.linalg.norm(np.asarray(a) - np.asarray(b))
+def norm(a, b, n):
+    if not isinstance(a, np.ndarray):
+        a = np.asarray(a)
 
+    if not isinstance(b, np.ndarray):
+        b = np.asarray(b)
 
-def norm_l1(a, b):
-    return np.linalg.norm((np.asarray(a) - np.asarray(b)), ord=1)
-
-
-def threshold(image, val=0.0, reverse=False):
-    if reverse:
-        background = image[:, :] > val
-    else:
-        background = image[:, :] < val
-
-    image[~background] = 255
-    image[background] = 0
-
-    return image
+    res = np.sum(np.abs(a - b)**n, axis=-1)**(1./n)
+    return res
 
 
 def crop(image):
@@ -51,31 +44,32 @@ def crop(image):
 
 
 def otsu(image, *args, **kwargs):
-    pixel_number = image.shape[0] * image.shape[1]
-    mean_weight = 1.0 / pixel_number
+    total_pixels = image.shape[0] * image.shape[1]
+    mean_weight = 1.0 / total_pixels
     his, bins = np.histogram(image, np.arange(0, 257))
+    # his, bins = hist(image=image)
     final_thresh = -1
     final_value = -1
     intensity_arr = np.arange(256)
 
-    for t in bins[1:-1]:
-        pcb = np.sum(his[:t])
-        pcf = np.sum(his[t:])
-        Wb = pcb * mean_weight
-        Wf = pcf * mean_weight
+    for thresh in bins[1:-1]:
+        left = np.sum(his[:thresh])
+        right = np.sum(his[thresh:])
+        w_left = left * mean_weight
+        w_right = right * mean_weight
 
-        mub = np.sum(intensity_arr[:t] * his[:t]) / float(pcb)
-        muf = np.sum(intensity_arr[t:] * his[t:]) / float(pcf)
+        mub = np.sum(intensity_arr[:thresh] * his[:thresh]) / float(left)
+        muf = np.sum(intensity_arr[thresh:] * his[thresh:]) / float(right)
 
-        value = Wb * Wf * (mub - muf) ** 2
+        value = w_left * w_right * (mub - muf) ** 2
 
         if value > final_value:
-            final_thresh = t
+            final_thresh = thresh
             final_value = value
 
     output = image.copy()
-    output[image > final_thresh] = 255.
-    output[image < final_thresh] = 0.
+    output[image > final_thresh] = 255
+    output[image < final_thresh] = 0
 
     return output
 
@@ -123,17 +117,26 @@ def gaussian_kernel(size, sigma):
     return kernel_2d / np.sum(kernel_2d)
 
 
-def matcher(s_desc, t_desc, measure, reverse=False):
+def matcher(s_desc, t_desc, measure, thresh=0.8, reverse=False):
     arr = []
 
     for s_idx, s_d in enumerate(s_desc):
-        min_score = float('inf')
+        heap = []
         for t_idx, t_d in enumerate(t_desc):
             score = measure(s_d, t_d)
-            if score < min_score:
-                min_score = score
+            heapq.heappush(heap, score)
 
-        arr.append(round(min_score, 2))
+        if len(heap) >= 2:
+            min_1 = heapq.heappop(heap)
+            min_2 = heapq.heappop(heap)
+
+            print(round(min_1 / min_2, 2), end=' | ')
+
+            if (min_1 / min_2) <= thresh:
+                arr.append(round(min_1, 2))
+            else:
+                if heap:
+                    arr.append(round(sum(heap)/len(heap), 2))
 
     return sorted(arr, reverse=reverse)
 
