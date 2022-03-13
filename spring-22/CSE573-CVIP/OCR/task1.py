@@ -121,7 +121,6 @@ def ocr(test_img, characters):
 
 
 def enrollment(characters, extractor, n_padding=4):
-    global min_char_size
     """ Args:
         You are free to decide the input arguments.
     Returns:
@@ -129,9 +128,10 @@ def enrollment(characters, extractor, n_padding=4):
     """
     char_features = {}
     for name, img in characters:
-        min_char_size = min(min_char_size, min(img.shape))
-        img_p = np.pad(img, n_padding, constant_values=255.)
-        _, descriptor = extract_features(img_p, extractor)
+        img = np.pad(img, n_padding, constant_values=255.)
+        if min(img.shape) < 18:
+            img = resize(img, 2)
+        _, descriptor = extract_features(img, extractor)
         char_features[name] = descriptor.tolist() if descriptor.any() else []
 
     with open('char_features.json', 'w') as f:
@@ -178,7 +178,7 @@ def detection(test_img, threshold_func, extractor, n_scale=2, n_padding=1):
         0,
         foreground=0,
     )
-    # print(len(list(components.keys())))
+    print(len(list(components.keys())))
 
     for n_component in components:
         component = components[n_component]
