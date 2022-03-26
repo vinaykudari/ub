@@ -112,7 +112,7 @@ def ocr(test_img, characters):
         dist_measure=norm_l4,
         measure_type='distance',
         min_thresh=float('-inf'),
-        max_thresh=180,
+        max_thresh=194,
     )
     return res
 
