@@ -6,13 +6,15 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import json
 
 
-def stitch(imgmark, N=4, savepath=''): #For bonus: change your input(N=*) here as default if the number of your input pictures is not 4.
+def stitch(imgmark, N=4,
+           savepath=''):  # For bonus: change your input(N=*) here as default if the number of your input pictures is not 4.
     "The output image should be saved in the savepath."
     "The intermediate overlap relation should be returned as NxN a one-hot(only contains 0 or 1) array."
     "Do NOT modify the code provided."
-    imgpath = [f'./images/{imgmark}_{n}.png' for n in range(1,N+1)]
+    imgpath = [f'./images/{imgmark}_{n}.png' for n in range(1, N + 1)]
     imgs = []
     for ipath in imgpath:
         img = cv2.imread(ipath)
@@ -20,12 +22,14 @@ def stitch(imgmark, N=4, savepath=''): #For bonus: change your input(N=*) here a
     "Start you code here"
 
     return overlap_arr
+
+
 if __name__ == "__main__":
-    #task2
+    # task2
     overlap_arr = stitch('t2', N=4, savepath='task2.png')
     with open('t2_overlap.txt', 'w') as outfile:
         json.dump(overlap_arr.tolist(), outfile)
-    #bonus
+    # bonus
     overlap_arr2 = stitch('t3', savepath='task3.png')
     with open('t3_overlap.txt', 'w') as outfile:
         json.dump(overlap_arr2.tolist(), outfile)
