@@ -7,13 +7,26 @@ from collections import defaultdict
 import cv2
 import numpy as np
 import json
-import math
+import matplotlib.pyplot as plt
 
 
 def resize(img, factor):
     h, w, a = shape(img)
-    op = cv2.resize(img, (int(w*factor), int(h*factor)))
+    op = cv2.resize(img, (int(w * factor), int(h * factor)))
     return op
+
+
+def show(img, dpi=100, disable_axis=True, color=True):
+    if color:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    plt.figure(dpi=dpi)
+    plt.imshow(img, cmap='gray')
+
+    if disable_axis:
+        ax = plt.gca()
+        ax.axes.xaxis.set_visible(False)
+        ax.axes.yaxis.set_visible(False)
 
 
 def shape(img):
@@ -76,7 +89,7 @@ def transform(c, homography):
     return new_x, new_y, new_w, new_h
 
 
-def match_desc(desc1, desc2, lowes_ratio=0.8):
+def match_desc(desc1, desc2, lowes_ratio):
     pair_dist = pairwise(desc1, desc2)
     min_pairs = np.partition(pair_dist, 1)[:, :2]
     idx = (min_pairs[:, 0] / min_pairs[:, 1]) < lowes_ratio
@@ -104,12 +117,15 @@ def get_matching_points(matches, kp1, kp2):
 def homography(match_pts, cv=True):
     src_pts, dst_pts = match_pts
     k = cv2.RANSAC if cv is True else 0
-    h, mask = cv2.findHomography(src_pts, dst_pts, k)
+    if len(src_pts) > 4:
+        h, mask = cv2.findHomography(src_pts, dst_pts, k, 5)
+    else:
+        h, mask = np.array([[0, 0, 0], [0, 0, 0], [0, 0, 0]]), None
 
     return h, mask
 
 
-def ransac(match_pts, thresh, factor, p=4, n=10000, prob=0.99):
+def ransac(match_pts, thresh, factor, p=10, n=10000, prob=0.99):
     src_pts, dst_pts = match_pts
     k = len(src_pts)
 
@@ -117,7 +133,7 @@ def ransac(match_pts, thresh, factor, p=4, n=10000, prob=0.99):
     mask = []
     src_pts_f = []
     dest_pts_f = []
-
+    print('\n')
     for i in range(n):
         rand_idx = np.random.choice(k, p)
         src_pts_s = src_pts[rand_idx]
@@ -132,8 +148,8 @@ def ransac(match_pts, thresh, factor, p=4, n=10000, prob=0.99):
         n_inliers = inliers.sum()
 
         if n_inliers > best_inliers:
-            min_error = errors.mean()
-            print(i, min_error, n_inliers, n_inliers / k)
+            mean_error = round(errors.mean(), 2)
+            print(f'idx:{i}, mean_error:{mean_error}, n_inliers:{n_inliers}, prob:{round(n_inliers / k, 2)}')
             best_inliers = n_inliers
             src_pts_f = src_pts[inliers]
             dest_pts_f = dst_pts[inliers]
@@ -145,35 +161,28 @@ def ransac(match_pts, thresh, factor, p=4, n=10000, prob=0.99):
     return src_pts_f, dest_pts_f, mask.astype(np.uint8)
 
 
-def get_H(img1_c, img2_c, thresh=0.015, cv=True):
-    sift = cv2.SIFT_create()
-    img1 = cv2.cvtColor(img1_c, cv2.COLOR_BGR2GRAY)
-    img2 = cv2.cvtColor(img2_c, cv2.COLOR_BGR2GRAY)
-
-    h1, w1 = img1.shape
-    h2, w2 = img2.shape
-
-    kp1, desc1 = extract_features(img1, sift)
-    kp2, desc2 = extract_features(img2, sift)
-
-    matches, n_matches = match_desc(desc1, desc2, lowes_ratio=0.8)
+def get_homography(
+        ransac_thresh, matches,
+        kp1, kp2, cv,
+):
     src_pts, dst_pts = get_matching_points(matches, kp1, kp2)
 
-    if cv is False:
-        k = math.sqrt((h1 + h2) ** 2 + (w1 + w2) ** 2)
-        src_pts, dst_pts, mask = ransac((src_pts, dst_pts), thresh=thresh, factor=k)
+    if cv is False and len(src_pts) > 4:
+        src_pts, dst_pts, mask = ransac(
+            (src_pts, dst_pts), thresh=ransac_thresh, factor=1,
+        )
+        print(f'after ransac n_matches: {len(src_pts)}')
+    h, mask = homography((src_pts, dst_pts), cv=cv)
 
-    h, _ = homography((src_pts, dst_pts), cv=cv)
-
-    return h
+    return h, mask
 
 
 def warp(img_c, H):
     _, _, a = shape(img_c)
     dx, dy, _, _ = transform(coordinates(img_c), H)
-    new_H, (tx, ty) = translate_homography(dx, dy, H)
-    x, y, w, h = transform(coordinates(img_c), new_H)
-    warped = cv2.warpPerspective(img_c, new_H, (x + w, y + h))
+    new_h, (tx, ty) = translate_homography(dx, dy, H)
+    x, y, w, h = transform(coordinates(img_c), new_h)
+    warped = cv2.warpPerspective(img_c, new_h, (x + w, y + h))
     return warped, (tx, ty)
 
 
@@ -191,7 +200,6 @@ def pad_img(img, c):
     if x + w > img.shape[1]:
         right = x + w - img.shape[1]
 
-    print(top, bottom, left, right)
     img = cv2.copyMakeBorder(
         img, top, bottom, left, right,
         cv2.BORDER_CONSTANT, value=[0, 0, 0],
@@ -200,19 +208,18 @@ def pad_img(img, c):
 
 
 def blend(img1, img2):
-    assert (img1.shape == img2.shape)
-    locs1 = np.where(cv2.cvtColor(img1, cv2.COLOR_RGB2GRAY) != 0)
-    blended1 = np.copy(img2)
-    blended1[locs1[0], locs1[1]] = img1[locs1[0], locs1[1]]
-    locs2 = np.where(cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY) != 0)
-    blended2 = np.copy(img1)
-    blended2[locs2[0], locs2[1]] = img2[locs2[0], locs2[1]]
-    blended = cv2.addWeighted(blended1, 0.5, blended2, 0.5, 0)
+    idx1 = np.where(cv2.cvtColor(img1, cv2.COLOR_RGB2GRAY) != 0)
+    b1 = np.copy(img2)
+    b1[idx1[0], idx1[1]] = img1[idx1[0], idx1[1]]
+    idx2 = np.where(cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY) != 0)
+    b2 = np.copy(img1)
+    b2[idx2[0], idx2[1]] = img2[idx2[0], idx2[1]]
+    blended = cv2.addWeighted(b1, 0.5, b2, 0.5, 0)
     return blended
 
 
-def merge(img1_c, img2_c, h):
-    result, pos = warp(img1_c, h)
+def merge(img1_c, img2_c, H):
+    result, pos = warp(img1_c, H)
     x_pos, y_pos = pos
     rect = x_pos, y_pos, img2_c.shape[1], img2_c.shape[0]
     result, _ = pad_img(result, rect)
@@ -224,42 +231,26 @@ def merge(img1_c, img2_c, h):
     return result, (x_pos - x, y_pos - y)
 
 
-def extract_all_features(imgs):
-    sift = cv2.SIFT_create()
-    feature_desc = np.array(
-        list(map(lambda x: extract_features(x, sift), imgs)),
-        dtype=object,
-    )[:, 1]
-
-    return feature_desc
-
-
-def get_all_matches(imgs, feature_desc, thresh=200):
-    n = len(imgs)
+def get_all_matches(descriptors, lowes_ratio):
+    n = len(descriptors)
     all_matches = defaultdict(lambda: np.zeros(n))
-    best_n = float('-inf')
 
-    for idx, img1 in enumerate(imgs):
-        desc1 = feature_desc[idx]
+    for idx in range(n):
+        desc1 = descriptors[idx]
 
-        for jdx, img2 in enumerate(imgs):
+        for jdx in range(n):
             if idx == jdx:
                 continue
 
-            desc2 = feature_desc[jdx]
-            _, n_matches = match_desc(desc1, desc2)
+            desc2 = descriptors[jdx]
+            _, n_matches = match_desc(desc1, desc2, lowes_ratio=lowes_ratio)
             all_matches[idx][jdx] = n_matches
 
-        temp = all_matches[idx]
-        if temp[temp > thresh].shape[0] > best_n:
-            best_n = temp[temp > thresh].shape[0]
-            best_match = idx
-
-    return dict(all_matches), best_match
+    return dict(all_matches)
 
 
-def get_overlap(imgs, fd, thresh):
-    match_score, _ = get_all_matches(imgs, fd)
+def get_overlap(descriptors, thresh, lowes_ratio=0.7):
+    match_score = get_all_matches(descriptors, lowes_ratio)
     x = np.array(list(match_score.values()))
     temp = x == 0
     x[x < thresh] = 0
@@ -269,65 +260,126 @@ def get_overlap(imgs, fd, thresh):
     return x
 
 
-def stitch_imgs(img1, img2, thresh, cv):
-    h = get_H(img1, img2, thresh=thresh, cv=cv)
+def stitch_images(img1, img2, ransac_thresh, matches, kp1, kp2, cv):
+    h, _ = get_homography(
+        ransac_thresh=ransac_thresh,
+        matches=matches, kp1=kp1, kp2=kp2, cv=cv,
+    )
     img, _ = merge(img1, img2, h)
     return img
 
 
-def pano(imgs, descriptors, extractor, r_thresh, thresh, cv):
+def pano(
+        imgs, descriptors, keypoints,
+        extractor, match_thresh, ransac_thresh,
+        lowes_ratio, show_inter, cv,
+):
     nxt_imgs = []
     nxt_desc = []
+    nxt_kp = []
+
     n = len(imgs)
     helper = np.ones(n)
     flag = True
+    stitched_img = None
 
-    while np.where(helper == 1)[0].shape[0] > 0:
+    while True:
         curr = np.where(helper == 1)[0][0]
         helper[curr] = 0
+
         best_n = float('-inf')
         best_nxt = None
+        best_matches = []
+        temp = None
 
         for nxt in np.where(helper == 1)[0]:
             matches, n_matches = match_desc(
-                descriptors[curr],
                 descriptors[nxt],
+                descriptors[curr],
+                lowes_ratio=lowes_ratio,
             )
-            if n_matches > best_n and n_matches > thresh:
+
+            try:
+                temp = n_matches
+                _, mask = get_homography(
+                    ransac_thresh=ransac_thresh, matches=matches,
+                    kp1=keypoints[nxt], kp2=keypoints[curr], cv=cv,
+                )
+                if mask is not None:
+                    n_matches = mask.sum()
+            except Exception as e:
+                print(e)
+                print('No.of Inlier less than required')
+
+            print(f'curr:{curr}, nxt:{nxt}, n_matches_b:{temp}, n_matches_a:{n_matches}')
+
+            if n_matches > best_n and n_matches > match_thresh:
                 best_n = n_matches
                 best_nxt = nxt
+                best_matches = matches
 
         if best_nxt is not None:
+            print(f'curr:{curr}, best_nxt:{best_nxt}, n_matches:{best_n}')
             helper[best_nxt] = 0
-            nxt_imgs.append(stitch_imgs(imgs[curr], imgs[best_nxt], thresh=r_thresh, cv=cv))
-            _, fd = extract_features(nxt_imgs[-1], extractor)
-            nxt_desc.append(fd)
-            print(f'Stitched {best_nxt}, {curr} | shape: {nxt_imgs[-1].shape}')
+            stitched_img = stitch_images(
+                img1=imgs[best_nxt], img2=imgs[curr], cv=cv,
+                kp1=keypoints[best_nxt], kp2=keypoints[curr],
+                ransac_thresh=ransac_thresh, matches=best_matches,
+            )
 
+            nxt_imgs.append(stitched_img)
+
+            kps, fds = extract_features(nxt_imgs[-1], extractor)
+            nxt_desc.append(fds)
+            nxt_kp.append(kps)
+
+            print(f'\nStitched {curr}, {best_nxt} | shape: {nxt_imgs[-1].shape}\n')
+
+            if show_inter:
+                show(nxt_imgs[-1])
         elif flag is False:
             nxt_imgs.append(imgs[curr])
             nxt_desc.append(descriptors[curr])
+            nxt_kp.append(keypoints[curr])
 
         flag = False
+        if np.where(helper == 1)[0].shape[0] == 0:
+            break
 
-    return nxt_imgs, nxt_desc
+    return nxt_imgs, nxt_desc, nxt_kp, stitched_img
 
 
-def stitch_pano(imgs, r_thresh=0.02, thresh=200, cv=True):
+def stitch_pano(
+        imgs, ransac_thresh=10, match_thresh=100,
+        lowes_ratio=0.7, show_inter=False, cv=True,
+):
     sift = cv2.SIFT_create()
-    a = imgs
-    b = [extract_features(img, sift)[1] for img in a]
-    c = 0
-    while a:
-        print(f'iter: {c}, imgs: {len(a)}')
-        a, b = pano(a, b, sift, r_thresh, thresh, cv)
-        if len(a) != 0:
-            res = a
-        c += 1
-    return res
+    descriptors = []
+    keypoints = []
+
+    for idx, img in enumerate(imgs):
+        kp, desc = extract_features(img, sift)
+        keypoints.append(kp)
+        descriptors.append(desc)
+
+    count = 0
+    res = None
+    while imgs:
+        print('------------------------------')
+        print(f'iter: {count}, imgs: {len(imgs)}\n')
+        imgs, descriptors, keypoints, stitched_img = pano(
+            imgs=imgs, descriptors=descriptors, keypoints=keypoints,
+            extractor=sift, match_thresh=match_thresh,
+            ransac_thresh=ransac_thresh, lowes_ratio=lowes_ratio,
+            show_inter=show_inter, cv=cv,
+        )
+        if stitched_img is not None:
+            res = stitched_img
+
+    return res, descriptors
 
 
-def stitch(imgmark, N=5, savepath=''):
+def stitch(imgmark, N=7, savepath=''):
     # For bonus: change your input(N=*) here as default if the number of your input pictures is not 4.
     """The output image should be saved in the save path."""
     "The intermediate overlap relation should be returned as NxN a one-hot(only contains 0 or 1) array."
@@ -337,23 +389,24 @@ def stitch(imgmark, N=5, savepath=''):
     imgs = []
     for ipath in imgpath:
         img = cv2.imread(ipath)
-        img = resize(img, 0.2)
         imgs.append(img)
     "Start you code here"
-    fd = extract_all_features(imgs)
-    overlap = get_overlap(imgs, fd, 200)
-    panorama = stitch_pano(list(imgs), thresh=150, r_thresh=0.018, cv=True)
-    cv2.imwrite(savepath, panorama[0])
+
+    panorama, descriptors = stitch_pano(
+        imgs, ransac_thresh=10, match_thresh=50, lowes_ratio=0.7,
+    )
+    overlap = get_overlap(descriptors, 200)
+    cv2.imwrite(savepath, panorama)
 
     return overlap
 
 
 if __name__ == "__main__":
     # task2
-    # overlap_arr = stitch('t2', N=4, savepath='task2.png')
-    # with open('t2_overlap.txt', 'w') as outfile:
-    #     json.dump(overlap_arr.tolist(), outfile)
+    overlap_arr = stitch('t2', N=4, savepath='task2.png')
+    with open('t2_overlap.txt', 'w') as outfile:
+        json.dump(overlap_arr.tolist(), outfile)
     # bonus
-    overlap_arr2 = stitch('t4', savepath='task3.png')
+    overlap_arr2 = stitch('t3', savepath='task3.png')
     with open('t3_overlap.txt', 'w') as outfile:
         json.dump(overlap_arr2.tolist(), outfile)

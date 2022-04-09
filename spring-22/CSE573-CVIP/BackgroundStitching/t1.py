@@ -5,7 +5,6 @@ import math
 
 import cv2
 import numpy as np
-import time
 
 
 def shape(img):
@@ -309,13 +308,10 @@ def merge(img1, img2, x_min, y_min, x_max, y_max, mask, thresh=3, pad=5):
     return mask_r[y_min:y_max + 1, x_min:x_max + 1]
 
 
-def stitch(img1_c, img2_c, r_thresh=0.015, cv=True):
+def stitch(img1_c, img2_c, r_thresh=20, cv=True):
     sift = cv2.SIFT_create()
     img1 = cv2.cvtColor(img1_c, cv2.COLOR_BGR2GRAY)
     img2 = cv2.cvtColor(img2_c, cv2.COLOR_BGR2GRAY)
-
-    h1, w1 = img1.shape
-    h2, w2 = img2.shape
 
     kp1, desc1 = extract_features(img1, sift)
     kp2, desc2 = extract_features(img2, sift)
@@ -323,9 +319,8 @@ def stitch(img1_c, img2_c, r_thresh=0.015, cv=True):
     matches, score = match_desc(desc1, desc2, lowes_ratio=0.7)
     src_pts, dst_pts = get_matching_points(matches, kp1, kp2)
 
-    if cv is False:
-        k = math.sqrt((h1 + h2) ** 2 + (w1 + w2) ** 2)
-        src_pts, dst_pts, mask = ransac((src_pts, dst_pts), thresh=r_thresh, factor=k)
+    if cv is False and len(src_pts) > 4:
+        src_pts, dst_pts, mask = ransac((src_pts, dst_pts), thresh=r_thresh, factor=1)
     h, _ = homography((src_pts, dst_pts), cv=cv)
 
     w_img1, w_img2, warped_img = warp(img1_c, img2_c, h)
