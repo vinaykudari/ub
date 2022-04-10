@@ -234,7 +234,6 @@ def merge(img1_c, img2_c, H):
 def get_all_matches(descriptors, lowes_ratio):
     n = len(descriptors)
     all_matches = defaultdict(lambda: np.zeros(n))
-
     for idx in range(n):
         desc1 = descriptors[idx]
 
@@ -249,13 +248,19 @@ def get_all_matches(descriptors, lowes_ratio):
     return dict(all_matches)
 
 
-def get_overlap(descriptors, thresh, lowes_ratio=0.7):
-    match_score = get_all_matches(descriptors, lowes_ratio)
+def get_overlap(fd, thresh, lowes_ratio=0.7):
+    match_score = get_all_matches(fd, lowes_ratio)
     x = np.array(list(match_score.values()))
-    temp = x == 0
-    x[x < thresh] = 0
-    x[x > thresh] = 1
-    x[temp] = 1
+    h, w = x.shape
+    for i in range(h):
+        for j in range(w):
+            if i == j:
+                x[i][j] = 1
+                continue
+            if x[i][j] > thresh:
+                x[i][j] = 1
+            else:
+                x[i][j] = 0
 
     return x
 
@@ -362,6 +367,7 @@ def stitch_pano(
         keypoints.append(kp)
         descriptors.append(desc)
 
+    desc_list = descriptors.copy()
     count = 0
     res = None
     while imgs:
@@ -375,11 +381,12 @@ def stitch_pano(
         )
         if stitched_img is not None:
             res = stitched_img
+        count += 1
 
-    return res, descriptors
+    return res, desc_list
 
 
-def stitch(imgmark, N=7, savepath=''):
+def stitch(imgmark, N=4, savepath=''):
     # For bonus: change your input(N=*) here as default if the number of your input pictures is not 4.
     """The output image should be saved in the save path."""
     "The intermediate overlap relation should be returned as NxN a one-hot(only contains 0 or 1) array."
@@ -395,7 +402,7 @@ def stitch(imgmark, N=7, savepath=''):
     panorama, descriptors = stitch_pano(
         imgs, ransac_thresh=10, match_thresh=50, lowes_ratio=0.7,
     )
-    overlap = get_overlap(descriptors, 200)
+    overlap = get_overlap(descriptors, thresh=80)
     cv2.imwrite(savepath, panorama)
 
     return overlap
