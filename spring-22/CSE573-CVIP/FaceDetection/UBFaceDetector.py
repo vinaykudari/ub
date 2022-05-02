@@ -77,7 +77,14 @@ def get_faces(img):
     k = 20 / 100
     for box in face_boxes:
         x, y, w, h = box.tolist()
-        boxes.append([max(x - (k * w), 0), max(y - (k * h), 0), w + (k * w), h + (k * h)])
+        boxes.append(
+            [
+                int(max(x - (k * w), 0)),
+                int(max(y - (k * h), 0)),
+                int(w + (k * w)),
+                int(h + (k * h)),
+            ],
+        )
         faces.append(img[y:y + h, x:x + w])
 
     return faces, boxes
