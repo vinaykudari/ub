@@ -34,7 +34,6 @@ def detect_faces(input_path: str) -> dict:
         for file in files:
             if '.jpg' in file:
                 img = cv2.imread(f'{folder}/{file}')
-                # img = cv2.equalizeHist(img)
                 _, face_boxes = get_faces(img, p=0.0, typ='cv_faces')
                 boxes = [bbox(file, box) for box in face_boxes]
                 result_list.extend(boxes)
@@ -117,12 +116,12 @@ def dnn_faces(img, prototxt, model, thresh):
     return boxes
 
 
-def resize_box(img, box, k):
+def resize_box(img, box, k, max_h, max_w):
     x, y, w, h = box
     x = int(max(x - (k * w), 0))
     y = int(max(y - (k * h), 0))
-    w = int(w + (k * w))
-    h = int(h + (k * h))
+    w = min(int(w + (k * w)), max_w-1)
+    h = min(int(h + (k * h)), max_h-1)
     box = [x, y, w, h]
     face = img[y:y + h, x:x + w]
     return face, box
@@ -131,6 +130,7 @@ def resize_box(img, box, k):
 def get_faces(img, typ='dnn', p=0.2):
     boxes = []
     faces = []
+    h, w = img.shape[:2]
     
     if typ == 'cascade':
         face_boxes = face_cascade.detectMultiScale(
@@ -138,7 +138,7 @@ def get_faces(img, typ='dnn', p=0.2):
         )
     elif typ == 'dnn':
         face_boxes = dnn_faces(
-            img, thresh=0.95,
+            img, thresh=0.96,
             model='res_300.caffemodel',
             prototxt='res_300.prototxt.txt',
         )
@@ -146,7 +146,13 @@ def get_faces(img, typ='dnn', p=0.2):
         _, face_boxes = cv_faces(img)
 
     for box in face_boxes:
-        face, new_box = resize_box(img, box, p)
+        x, y, _, _ = box
+        if x > w or y > h:
+            continue
+        face, new_box = resize_box(
+            img, box, p,
+            max_h=h, max_w=w,
+        )
         boxes.append(new_box)
         faces.append(face)
 
@@ -204,7 +210,7 @@ def batch_cluster(faces):
     return res
 
 
-def cluster_helper(input_path: str, K: int, face_detector='cascade', cluster_method='dbscan', p=0.2):
+def cluster_helper(input_path: str, K: int, face_detector='cascade', cluster_method='kmeans', p=0.2):
     K = int(K)
     input_path = input_path + '/'
     res = []
