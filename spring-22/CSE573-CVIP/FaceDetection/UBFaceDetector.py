@@ -139,8 +139,8 @@ def get_faces(img, typ='dnn', p=0.2):
     elif typ == 'dnn':
         face_boxes = dnn_faces(
             img, thresh=0.95,
-            model='res10.caffemodel',
-            prototxt='deploy.prototxt.txt',
+            model='res_300.caffemodel',
+            prototxt='res_300.prototxt.txt',
         )
     else:
         _, face_boxes = cv_faces(img)
