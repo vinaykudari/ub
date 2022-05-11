@@ -68,6 +68,28 @@ def bbox(fname, box):
     }
 
 
+def dnn_faces(img, typ):
+    h, w = img.shape
+    model_path = 'yunet.onxx'
+
+    if typ == 'yunet_quantized':
+        model_path = 'yunet_quantized.onnx'
+
+    model = open(model_path)
+
+    detector = cv2.FaceDetectorYN.create(
+        model_path,
+        "",
+        (320, 320),
+        0.9,
+        0.3,
+        100,
+    )
+    detector.setInputSize((h, w))
+    faces = detector.detect(img)
+
+    return faces
+
 def get_faces(img):
     boxes = []
     faces = []
@@ -182,6 +204,7 @@ def cluster_helper(input_path: str, K: int):
 
 
 path = '/'.join(cv2.__file__.split('/')[:-1]) + '/data/haarcascade_frontalface_default.xml'
+
 cascade_file = cv2.samples.findFile(path)
 face_cascade = cv2.CascadeClassifier(cascade_file)
 
@@ -213,6 +236,7 @@ def show_batch(imgs, size=10, dpi=100, axes_pad=0.4, col=4, disable_axis=True, s
         if len(im.shape) > 2:
             im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
         ax.imshow(im, cmap='gray')
+
         if show_title:
             ax.set_title(f'Image {idx}')
         ax.axes.xaxis.set_visible(False)

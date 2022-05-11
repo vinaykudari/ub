@@ -33,7 +33,7 @@ def detect_faces(input_path: str) -> dict:
     for folder, _, files in os.walk(input_path):
         for file in files:
             if '.jpg' in file:
-                img = cv2.imread(f'{folder}/{file}', 0)
+                img = cv2.imread(f'{folder}/{file}')
                 # img = cv2.equalizeHist(img)
                 _, face_boxes = get_faces(img)
                 boxes = [bbox(file, box) for box in face_boxes]
@@ -47,7 +47,7 @@ K: number of clusters
 
 
 def cluster_faces(input_path: str, K: int) -> dict:
-    res, imgs = cluster_helper(input_path, K)
+    _, res, _ = cluster_helper(input_path, K)
     return res
 
 
@@ -68,24 +68,60 @@ def bbox(fname, box):
     }
 
 
-def get_faces(img):
+def dnn_faces(img):
+    h, w = img.shape[:2]
+    model_path = './yunet.onnx'
     boxes = []
     faces = []
-    face_boxes = face_cascade.detectMultiScale(
-        img, scaleFactor=1.03, minNeighbors=30,
+
+    detector = cv2.FaceDetectorYN.create(
+        model_path,
+        "",
+        (300, 300),
+        0.9,
+        0.3,
+        100,
     )
-    k = 20 / 100
-    for box in face_boxes:
-        x, y, w, h = box.tolist()
-        boxes.append(
-            [
-                int(max(x - (k * w), 0)),
-                int(max(y - (k * h), 0)),
-                int(w + (k * w)),
-                int(h + (k * h)),
-            ],
+    detector.setInputSize((w, h))
+    _, imgs = detector.detect(img)
+    if imgs is not None:
+        imgs = imgs.astype(np.int32).tolist()
+        for face in imgs:
+            x1, y1, w, h = face[:4]
+            x1, y1 = max(x1, 0), max(y1, 0)
+            faces.append(img[y1:y1 + h + 1, x1:x1 + w + 1])
+            boxes.append([x1, y1, w, h])
+
+    return faces, boxes
+
+
+def resize_box(img, box, k):
+    x, y, w, h = box
+    x = int(max(x - (k * w), 0))
+    y = int(max(y - (k * h), 0))
+    w = int(w + (k * w))
+    h = int(h + (k * h))
+    box = [x, y, w, h]
+    face = img[y:y + h, x:x + w]
+    return face, box
+
+
+def get_faces(img, typ='cascade', k=0.2):
+    boxes = []
+    faces = []
+    
+    if typ == 'cascade':
+        print('Using Haar Cascade')
+        face_boxes = face_cascade.detectMultiScale(
+            img, scaleFactor=1.03, minNeighbors=30,
         )
-        faces.append(img[y:y + h, x:x + w])
+    else:
+        _, face_boxes = dnn_faces(img)
+
+    for box in face_boxes:
+        face, new_box = resize_box(img, box, k)
+        boxes.append(new_box)
+        faces.append(face)
 
     return faces, boxes
 
@@ -96,7 +132,7 @@ def cluster(encodings, k=None, typ=None):
         model = DBSCAN(metric='euclidean', n_jobs=-1)
     elif typ == 'kmeans':
         print('Using KMeans')
-        model = KMeans(n_clusters=k or 5, random_state=0, n_jobs=-1)
+        model = KMeans(n_clusters=k or 5, random_state=0)
     elif typ == 'mean_shift':
         print('Using MeanShift')
         model = MeanShift(n_jobs=-1)
@@ -104,6 +140,7 @@ def cluster(encodings, k=None, typ=None):
         print('Using OPTICS')
         model = OPTICS(n_jobs=-1)
     elif typ == 'spectral':
+        print('Using Spectral')
         model = SpectralClustering(n_clusters=k, n_jobs=-1)
     model.fit(encodings)
 
@@ -141,6 +178,8 @@ def batch_cluster(faces):
 
 
 def cluster_helper(input_path: str, K: int):
+    K = int(K)
+    input_path = input_path + '/'
     res = []
     clusters = {}
     cluster_faces = []
@@ -152,7 +191,7 @@ def cluster_helper(input_path: str, K: int):
         for file in files:
             if '.jpg' in file:
                 img = cv2.imread(f'{folder}/{file}')
-                faces, _ = get_faces(img)
+                faces, _ = get_faces(img, k=0.2)
                 for face in faces:
                     cluster_faces.append(face)
                     cluster_map[count] = file
@@ -165,7 +204,7 @@ def cluster_helper(input_path: str, K: int):
             encodings.append(enc[0])
     encodings = np.array(encodings, dtype=object)
 
-    model = cluster(encodings, k=K, typ='spectral')
+    model = cluster(encodings, k=K, typ='kmeans')
     labels = np.unique(model.labels_)
     for label in labels:
         idxs = np.where(model.labels_ == label)[0]
@@ -213,6 +252,7 @@ def show_batch(imgs, size=10, dpi=100, axes_pad=0.4, col=4, disable_axis=True, s
         if len(im.shape) > 2:
             im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
         ax.imshow(im, cmap='gray')
+
         if show_title:
             ax.set_title(f'Image {idx}')
         ax.axes.xaxis.set_visible(False)
