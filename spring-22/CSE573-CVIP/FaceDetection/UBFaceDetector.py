@@ -35,7 +35,7 @@ def detect_faces(input_path: str) -> dict:
             if '.jpg' in file:
                 img = cv2.imread(f'{folder}/{file}')
                 # img = cv2.equalizeHist(img)
-                _, face_boxes = get_faces(img)
+                _, face_boxes = get_faces(img, p=0.0, typ='cv_faces')
                 boxes = [bbox(file, box) for box in face_boxes]
                 result_list.extend(boxes)
     return result_list
@@ -68,19 +68,20 @@ def bbox(fname, box):
     }
 
 
-def dnn_faces(img):
+def cv_faces(img):
     h, w = img.shape[:2]
     model_path = './yunet.onnx'
     boxes = []
     faces = []
 
+    # img = cv2.resize(img, (300, 300))
     detector = cv2.FaceDetectorYN.create(
         model_path,
         "",
-        (300, 300),
-        0.9,
-        0.3,
-        100,
+        (w, h),
+        0.90,
+        0.2,
+        5000,
     )
     detector.setInputSize((w, h))
     _, imgs = detector.detect(img)
@@ -95,6 +96,27 @@ def dnn_faces(img):
     return faces, boxes
 
 
+def dnn_faces(img, prototxt, model, thresh):
+    boxes = []
+    net = cv2.dnn.readNetFromCaffe(prototxt, model)
+    (h, w) = img.shape[:2]
+    blob = cv2.dnn.blobFromImage(
+        cv2.resize(img, (300, 300)),
+        1.0, (300, 300),
+        (104.0, 177.0, 123.0),
+    )
+    net.setInput(blob)
+    detections = net.forward()
+    for i in range(0, detections.shape[2]):
+        confidence = detections[0, 0, i, 2]
+        if confidence > thresh:
+            box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+            x1, y1, x2, y2 = box.astype('int')
+            boxes.append([x1, y1, x2-x1, y2-y1])
+
+    return boxes
+
+
 def resize_box(img, box, k):
     x, y, w, h = box
     x = int(max(x - (k * w), 0))
@@ -106,20 +128,25 @@ def resize_box(img, box, k):
     return face, box
 
 
-def get_faces(img, typ='cascade', k=0.2):
+def get_faces(img, typ='dnn', p=0.2):
     boxes = []
     faces = []
     
     if typ == 'cascade':
-        print('Using Haar Cascade')
         face_boxes = face_cascade.detectMultiScale(
             img, scaleFactor=1.03, minNeighbors=30,
         )
+    elif typ == 'dnn':
+        face_boxes = dnn_faces(
+            img, thresh=0.95,
+            model='res10.caffemodel',
+            prototxt='deploy.prototxt.txt',
+        )
     else:
-        _, face_boxes = dnn_faces(img)
+        _, face_boxes = cv_faces(img)
 
     for box in face_boxes:
-        face, new_box = resize_box(img, box, k)
+        face, new_box = resize_box(img, box, p)
         boxes.append(new_box)
         faces.append(face)
 
@@ -127,10 +154,7 @@ def get_faces(img, typ='cascade', k=0.2):
 
 
 def cluster(encodings, k=None, typ=None):
-    if typ is None:
-        print('Using DBSCAN')
-        model = DBSCAN(metric='euclidean', n_jobs=-1)
-    elif typ == 'kmeans':
+    if typ == 'kmeans':
         print('Using KMeans')
         model = KMeans(n_clusters=k or 5, random_state=0)
     elif typ == 'mean_shift':
@@ -142,6 +166,9 @@ def cluster(encodings, k=None, typ=None):
     elif typ == 'spectral':
         print('Using Spectral')
         model = SpectralClustering(n_clusters=k, n_jobs=-1)
+    else:
+        print('Using DBSCAN')
+        model = DBSCAN(metric='euclidean', n_jobs=-1)
     model.fit(encodings)
 
     return model
@@ -177,7 +204,7 @@ def batch_cluster(faces):
     return res
 
 
-def cluster_helper(input_path: str, K: int):
+def cluster_helper(input_path: str, K: int, face_detector='cascade', cluster_method='dbscan', p=0.2):
     K = int(K)
     input_path = input_path + '/'
     res = []
@@ -191,20 +218,20 @@ def cluster_helper(input_path: str, K: int):
         for file in files:
             if '.jpg' in file:
                 img = cv2.imread(f'{folder}/{file}')
-                faces, _ = get_faces(img, k=0.2)
+                faces, _ = get_faces(img, p=p, typ=face_detector)
                 for face in faces:
                     cluster_faces.append(face)
                     cluster_map[count] = file
                     count += 1
-
     cluster_faces = np.array(cluster_faces, dtype=object)
+    print(cluster_faces.shape)
     for im in cluster_faces:
         enc = face_encodings(im)
         if len(enc) > 0:
             encodings.append(enc[0])
     encodings = np.array(encodings, dtype=object)
 
-    model = cluster(encodings, k=K, typ='kmeans')
+    model = cluster(encodings, k=K, typ=cluster_method)
     labels = np.unique(model.labels_)
     for label in labels:
         idxs = np.where(model.labels_ == label)[0]
