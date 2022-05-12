@@ -102,7 +102,6 @@ def dnn_faces(img, prototxt, model, thresh):
     blob = cv2.dnn.blobFromImage(
         cv2.resize(img, (300, 300)),
         1.0, (300, 300),
-        (104.0, 177.0, 123.0),
     )
     net.setInput(blob)
     detections = net.forward()
@@ -127,7 +126,7 @@ def resize_box(img, box, k, max_h, max_w):
     return face, box
 
 
-def get_faces(img, typ='dnn', p=0.2):
+def get_faces(img, typ='cv_faces', p=0.2):
     boxes = []
     faces = []
     h, w = img.shape[:2]
@@ -139,8 +138,8 @@ def get_faces(img, typ='dnn', p=0.2):
     elif typ == 'dnn':
         face_boxes = dnn_faces(
             img, thresh=0.96,
-            model='res_300.caffemodel',
-            prototxt='res_300.prototxt.txt',
+            model='res_10.caffemodel',
+            prototxt='res_10.prototxt.txt',
         )
     else:
         _, face_boxes = cv_faces(img)
@@ -210,7 +209,7 @@ def batch_cluster(faces):
     return res
 
 
-def cluster_helper(input_path: str, K: int, face_detector='cascade', cluster_method='kmeans', p=0.2):
+def cluster_helper(input_path: str, K: int, face_detector='cascade', cluster_method='kmeans', p=0.0):
     K = int(K)
     input_path = input_path + '/'
     res = []
@@ -242,7 +241,7 @@ def cluster_helper(input_path: str, K: int, face_detector='cascade', cluster_met
     for label in labels:
         idxs = np.where(model.labels_ == label)[0]
         cropped = batch_cluster(cluster_faces[idxs])
-        elements = [cluster_map[idx] for idx in idxs.tolist()]
+        elements = [f'img{cluster_map[idx]}' for idx in idxs.tolist()]
         info = {
             'cluster_no': int(label),
             'elements': elements,
@@ -253,7 +252,7 @@ def cluster_helper(input_path: str, K: int, face_detector='cascade', cluster_met
     return model, res, clusters
 
 
-path = '/'.join(cv2.__file__.split('/')[:-1]) + '/data/haarcascade_frontalface_default.xml'
+path = 'haarcascade_frontalface_default.xml'
 cascade_file = cv2.samples.findFile(path)
 face_cascade = cv2.CascadeClassifier(cascade_file)
 
