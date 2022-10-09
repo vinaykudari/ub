@@ -133,7 +133,7 @@ def get_faces(img, typ='cv_faces', p=0.2):
     
     if typ == 'cascade':
         face_boxes = face_cascade.detectMultiScale(
-            img, scaleFactor=1.03, minNeighbors=30,
+            img, scaleFactor=1.03, minNeighbors=25,
         )
     elif typ == 'dnn':
         face_boxes = dnn_faces(
@@ -241,7 +241,7 @@ def cluster_helper(input_path: str, K: int, face_detector='cascade', cluster_met
     for label in labels:
         idxs = np.where(model.labels_ == label)[0]
         cropped = batch_cluster(cluster_faces[idxs])
-        elements = [f'img{cluster_map[idx]}' for idx in idxs.tolist()]
+        elements = [cluster_map[idx] for idx in idxs.tolist()]
         info = {
             'cluster_no': int(label),
             'elements': elements,

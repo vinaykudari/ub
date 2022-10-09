@@ -4,6 +4,7 @@
 # 3. Not following the project guidelines will result in a 10% reduction in grades
 from collections import defaultdict
 
+import os
 import cv2
 import numpy as np
 import json
